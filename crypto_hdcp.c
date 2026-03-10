@@ -1887,7 +1887,7 @@ int crypto_validation_stub(void)
  * crypto_init_and_parse_im4m — main entry point called from main()
  *
  * Reads the IM4M manifest from the flash address returned by
- * flash_efface_firmware_update(), parses the certificate chain, verifies
+ * flash_apply_pending_update(), parses the certificate chain, verifies
  * the firmware hash, and loads the HDCP keys from the authenticated manifest.
  *
  * The parameters (a1..a4) are passed through from the flash_efface return

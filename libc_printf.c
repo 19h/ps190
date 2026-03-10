@@ -53,7 +53,7 @@ uint32_t float_sub_mantissa(uint32_t *a, int *b);
 uint32_t get_global_struct_ptr(void);
 
 /* Forward declaration — audio subsystem output character callback          */
-int audio_set_hw_state_3(int result);   /* used as emit_char callback */
+int audio_trigger_route_chain(int result);   /* used as emit_char callback */
 
 /* Forward declaration — own vprintf */
 int vprintf_internal(int fmt_str, int emit_state, int *ap);
@@ -851,7 +851,7 @@ void format_float(int ctx_int, int conv, int ap_int)
  *   fmt_str  — format string pointer
  *   emit_state — address of the UART output state struct (0x40410)
  *   ap       — va_list argument pointer (as int *)
- *   emit_fn  — character output function (audio_set_hw_state_3)
+ *   emit_fn  — character output function (audio_trigger_route_chain)
  * ====================================================================== */
 int format_string_setup(int fmt_str, int emit_state, int *ap, int emit_fn)
 {
@@ -875,7 +875,7 @@ int format_string_setup(int fmt_str, int emit_state, int *ap, int emit_fn)
 int vprintf_internal(int fmt_str, int emit_state, int *ap)
 {
     int n = format_string_setup(fmt_str, emit_state, ap,
-                                (int)audio_set_hw_state_3);
+                                (int)audio_trigger_route_chain);
     /* Check error flag: emit_state+12, bit 7 = error */
     if (*(uint8_t *)(emit_state + 12) & 0x80u)
         return -1;

@@ -31,94 +31,94 @@ static void     prng_lfg_advance(void);        /* internal helper */
  * ====================================================================== */
 
 /* hw_misc.c */
-int  hw_misc_init_state_1(void);
-int  hw_misc_set_state_4(void);
-int  hw_misc_set_state_5(void);
-int  hw_misc_set_state_6(void);
-int  hw_misc_set_state_7(void);
-int  hw_misc_set_state_9(void);
-int  hw_misc_set_state_10(void);
-int  hw_misc_set_state_21(void);
-int  hw_misc_set_state_25(void);
-int  hw_misc_set_state_26(void);
-int  hw_misc_set_state_29(void);
+int  hw_misc_copy_rom_defaults(void);
+int  hw_misc_enable_hdcp_auth_irq(void);
+int  hw_misc_disable_hdcp_auth_irq(void);
+int  hw_misc_clear_reg_2c4_bit20(void);
+int  hw_misc_set_reg_238_234(void);
+int  hw_misc_irq_enable_b_clear_bit0(void);
+int  hw_misc_clear_all_irqs(void);
+int  hw_misc_enable_scb_irqs(void);
+int  hw_misc_ddc_mode_init(void);
+int  hw_misc_irq_routing_init(void);
+int  hw_misc_power_up_output_stage(void);
 int  hw_misc_set_state_31(void);
-int  hw_misc_set_state_34(void);
-int  hw_misc_set_state_35(void);
-int  hw_misc_set_state_37(void);
-int  hw_misc_set_state_50(void);
-int  hw_misc_set_state_59(void);
-int  hw_misc_set_state_64(void);
-int  hw_misc_set_state_73(void);
-int  hw_misc_set_state_1(void);
-int  hw_misc_init_state_3(void);
-int  hw_misc_init_state_6(void);
-int  hw_misc_return_state_2(void);
-int  hw_misc_process_state_3(void);
-int  hw_misc_process_state_4(void);
-int  hw_misc_process_state_6(void);
-int  hw_misc_process_state_12(void);
-int  hw_misc_process_state_24(void);
-int  hw_misc_process_state_25(void);
-int  hw_misc_process_state_33(uint16_t cap_byte);
-int  hw_misc_process_state_34(void);
-int  hw_misc_process_state_35(void);
-int  hw_misc_process_state_38(int flags);
-int  hw_misc_process_state_39(void);
-int  hw_misc_process_state_43(void);
-int  hw_misc_process_state_44(void);
-int  hw_misc_process_state_55(int a1, int a2, int a3);
-int  hw_misc_process_state_59(void);
-int  hw_misc_process_state_86(void);
+int  hw_misc_enable_power_rail_a(void);
+int  hw_misc_enable_power_rail_b(void);
+int  hw_misc_set_serialiser_clock(void);
+int  hw_misc_kick_watchdog(void);
+int  hw_misc_init_regs_1300_131d(void);
+int  hw_misc_clear_reg_38b(void);
+int  hw_misc_enable_hdcp_irq_mask(void);
+int  hw_misc_disable_clk_run_bits(void);
+int  hw_misc_init_pll_and_fifo_regs(void);
+int  hw_misc_audio_earc_ctrl_init(void);
+int  hw_misc_get_current_task(void);
+int  hw_misc_update_reg_29c(void);
+int  hw_misc_handle_sink_count_change(void);
+int  hw_misc_check_crash_magic(void);
+int  hw_misc_top_irq_handler_and_yield(void);
+int  hw_misc_poll_hpd_event_flags(void);
+int  hw_misc_wait_for_boot_flag(void);
+int  hw_misc_apply_hdmi_cap_byte(uint16_t cap_byte);
+int  hw_misc_poll_audio_status_page9(void);
+int  hw_misc_irq_mask_a_enable_lower(void);
+int  hw_misc_seed_prng_and_clock(int flags);
+int  hw_misc_init_event_queue_slots(void);
+int  hw_misc_enable_top_irq_masks(void);
+int  hw_misc_disable_audio_irqs_during_init(void);
+int  hw_misc_hdcp_key_slot_init(int a1, int a2, int a3);
+int  hw_misc_poll_reg_492_49f(void);
+int  hw_misc_enable_phy_pll_and_wait(void);
 int  hw_misc_process_state_107(int cfg_reg);
 int  hw_misc_process_state_109(void);
 int  hw_misc_process_state_124(int flags, int hpd_state);
 int  hw_misc_process_state_146(void);
 int  hw_misc_process_state_147(void);
-int  hw_misc_set_state_28(uint32_t cfg);
-int  hw_misc_set_state_50(void);
+int  hw_misc_phy_serialiser_init(uint32_t cfg);
+int  hw_misc_kick_watchdog(void);
 
 /* flash_nvram.c */
-int  flash_efface_firmware_update(int flags);
+int  flash_apply_pending_update(int flags);
 
 /* crypto_hdcp.c */
 int  crypto_init_and_parse_im4m(int a1, int a2, int a3, int a4);
 
 /* hdmi_frl_video.c */
 int  cec_irq_handler(void);
-int  frl_reset_state_6(void);
-int  video_set_state_10(void);
-int  video_check_state_20(void);
-int  video_set_hw_state_21(int hpd_level);
-int  video_set_hw_state_26(void);
-int  video_get_hw_state_27(int channel);
-int  video_get_hw_state_28(int channel);
-int  video_get_hw_state_31(int channel);
-int  video_check_state_38(void);
-bool video_check_state_39(void);
+int  frl_fsm_reset_to_state6(void);
+int  video_event_queue_init(void);
+int  video_is_active_and_not_muted(void);
+int  video_set_hpd_pin_level(int hpd_level);
+int  video_irq_routing_init(void);
+int  video_get_timing_lock_bit3(int channel);
+int  video_get_timing_lock_bit6(int channel);
+int  video_get_timing_lock_bit7(int channel);
+int  video_is_debug_flag_bit5_set(void);
+bool video_is_fifo_status_ok(void);
 int  video_process_event_queue(int a1, int a2, int a3);
-int  video_init_hw_state_65(void);
-int  video_process_state_84(void);
-int  video_init_hw_state_90(void);
-int  video_timer_update_95(int a1, int a2, int a3);
-int  video_set_hw_state_100(void);
-int  video_process_state_113(int code, int fatal);
-int  video_set_state_123(void);
-int  video_set_state_124(void);
-int  video_get_state_125(int base, int offset);
-int  video_state_machine_3(int a1, int a2, int a3);
-int  video_process_state_164(int a1, int a2, int a3);
-int  video_init_state_165(void);
-int  video_set_hw_state_177(void);
-int  video_state_machine_4(int a1, int a2, int a3);
+int  video_init_hpd_and_frl_state(void);
+int  video_poll_audio_mute_irq_wrapper(void);
+int  video_hw_init_sequence(void);
+int  video_update_timer_ed0(int a1, int a2, int a3);
+int  video_set_misc_audio_ctrl_81(void);
+int  video_handle_fatal_error_overlay(int code, int fatal);
+int  video_set_fatal_flag(void);
+int  video_clear_fatal_flag(void);
+int  video_snapshot_event_time(int base, int offset);
+int  video_fsm_vpll_sm_state(int a1, int a2, int a3);
+int  video_update_timer_119_wrapper(int a1, int a2, int a3);
+int  video_init_vpll_and_phase_state(void);
+int  video_sm_state_set_1(void);
+int  video_fsm_drain_events_and_hpd(int a1, int a2, int a3);
 
 /* audio_earc.c */
-int  audio_timer_update(int a1, int a2, int a3);
+int  audio_update_freq_ready_timers(int a1, int a2, int a3);
 int  audio_check_format_change(void);
-int  audio_set_hw_state_1(int enable);
-int  audio_process_state_33(void);
-int  audio_init_state_97(void);
-int  audio_state_machine_1(void);
+int  audio_set_mute_ctrl_regs(int enable);
+int  audio_h14_protocol_state_machine_kick(void);
+int  audio_protocol_init_timeouts(void);
+int  audio_frl_fsm_tick(void);
 
 /* i2c_scdc.c */
 int  scdc_periodic_task(void);
@@ -464,12 +464,12 @@ __attribute__((noreturn)) void system_halt_clear_flag(void)
  * system_fatal_halt() — assert a hard reset / watchdog via the system
  * control register, then spin.
  *
- * hw_misc_set_state_5() gates off the output buffers first so the HDMI
+ * hw_misc_disable_hdcp_auth_irq() gates off the output buffers first so the HDMI
  * sink sees a clean HPD deassert before the chip stops.
  */
 __attribute__((noreturn)) void system_fatal_halt(void)
 {
-    hw_misc_set_state_5();
+    hw_misc_disable_hdcp_auth_irq();
     REG_SYS_CTRL |= REG_SYS_CTRL_HALT;
     for (;;) ;
 }
@@ -513,11 +513,11 @@ __attribute__((noreturn)) void system_crash_dump_and_halt(int sp_frame)
     CRASH_SAVED_LR = *(uint32_t *)(sp_frame + 24);
 
     /* Tell the video subsystem to display an error overlay (code 16) */
-    hw_misc_init_state_1();
-    video_process_state_113(16, 1);
+    hw_misc_copy_rom_defaults();
+    video_handle_fatal_error_overlay(16, 1);
 
     /* Flush hardware state / power down gracefully */
-    hw_misc_process_state_25();
+    hw_misc_wait_for_boot_flag();
 
     /* Cancel any pending firmware-exec override */
     REG_FW_JUMP_ADDR = 0u;
@@ -613,9 +613,9 @@ __attribute__((noreturn)) void nmi_or_generic_fault_handler(int sp_frame)
     CRASH_NMI_LR = *(uint32_t *)(sp_frame + 20);   /* 0x44C17 */
 
     /* Display NMI error overlay (code 17 = NMI/clock-loss) */
-    video_process_state_113(17, 1);
-    hw_misc_init_state_1();
-    hw_misc_process_state_25();
+    video_handle_fatal_error_overlay(17, 1);
+    hw_misc_copy_rom_defaults();
+    hw_misc_wait_for_boot_flag();
 
     REG_FW_JUMP_ADDR = 0u;
     system_fatal_halt();
@@ -668,39 +668,39 @@ int main(void)
     REG_BOOT_FLAGS         = 0u;                   /* clear boot-phase flag              */
 
     /* Configure the main PHY / serialiser: 0xC00 = default lane config */
-    hw_misc_set_state_28(0xC00u);
+    hw_misc_phy_serialiser_init(0xC00u);
 
     /* Clear HDMI soft-reset bit */
     REG_HDMI_RESET &= ~0x40u;
 
     /* De-assert HPD output so the source sees us as disconnected during init */
-    video_set_hw_state_21(0);
+    video_set_hpd_pin_level(0);
 
     /* Set HDMI control byte 1 to default mode 4 */
     REG_HDMI_CTRL_1 = 4u;
 
     /* Power up the retimer output stage */
-    hw_misc_set_state_29();
+    hw_misc_power_up_output_stage();
 
     /*
      * Sample HPD input from the HDMI sink.
      * Returns non-zero if a sink is connected; save for later comparison.
      */
-    hpd_state_at_boot = video_init_hw_state_65();
+    hpd_state_at_boot = video_init_hpd_and_frl_state();
 
     /* Release the output driver and configure the I/O mux */
-    hw_misc_process_state_39();
+    hw_misc_init_event_queue_slots();
 
     /* Configure video path default parameters */
-    video_set_state_123();
-    video_set_hw_state_100();
+    video_set_fatal_flag();
+    video_set_misc_audio_ctrl_81();
 
     /* Enable the clock/power rails for video and audio PHY */
-    hw_misc_set_state_35();
-    hw_misc_set_state_34();
+    hw_misc_enable_power_rail_b();
+    hw_misc_enable_power_rail_a();
 
     /* Disable any spurious audio interrupts during init */
-    hw_misc_process_state_44();
+    hw_misc_disable_audio_irqs_during_init();
 
     /* Clear HPD debounce timer */
     REG_HPD_CTRL = 0u;
@@ -709,12 +709,12 @@ int main(void)
      * Verify that the HDMI block is ready to accept configuration.
      * If not (hardware fault), spin forever — nothing we can do.
      */
-    if (!video_check_state_39()) {
+    if (!video_is_fifo_status_ok()) {
         for (;;) ;
     }
 
     /* Enable PHY PLL and wait for it to lock */
-    hw_misc_process_state_86();
+    hw_misc_enable_phy_pll_and_wait();
 
     /* Clear PHY PLL control register */
     REG_PHY_PLL_CTRL = 0u;
@@ -723,7 +723,7 @@ int main(void)
     REG_HDMI_FRL_STATUS = 0x2000000u;
 
     /* Set up the 40-kHz reference clock for HDCP/CEC */
-    hw_misc_process_state_38(0x40000);
+    hw_misc_seed_prng_and_clock(0x40000);
 
     /* ---------------------------------------------------------------
      * Phase 1b: latch the actual operating clock
@@ -738,7 +738,7 @@ int main(void)
     REG_NVRAM_MODEL_ID     = REG_TCB_CLOCK_HZ;    /* 0x406D4 = 0x40194 */
 
     /* Program the serialiser/equaliser with the actual clock */
-    hw_misc_set_state_37();
+    hw_misc_set_serialiser_clock();
 
     /* Latch clock into the task control block */
     REG_TCB_CURRENT_TASK = REG_TCB_CLOCK_SHADOW;  /* 0x401A0 = 0x40198 */
@@ -746,14 +746,14 @@ int main(void)
     /* ---------------------------------------------------------------
      * Phase 1c: subsystem state machine initialisation
      * ------------------------------------------------------------ */
-    hw_misc_process_state_3();
-    video_init_hw_state_90();
-    video_init_state_165();
-    hw_misc_return_state_2();
-    audio_init_state_97();
-    frl_reset_state_6();
-    hw_misc_init_state_3();
-    video_set_state_10();
+    hw_misc_update_reg_29c();
+    video_hw_init_sequence();
+    video_init_vpll_and_phase_state();
+    hw_misc_get_current_task();
+    audio_protocol_init_timeouts();
+    frl_fsm_reset_to_state6();
+    hw_misc_init_pll_and_fifo_regs();
+    video_event_queue_init();
 
     /* Configure FRL training parameters using the detected HPD state */
     hw_misc_process_state_124(0x40000, hpd_state_at_boot);
@@ -761,20 +761,20 @@ int main(void)
     /* ---------------------------------------------------------------
      * Phase 1d: interrupt and priority configuration
      * ------------------------------------------------------------ */
-    hw_misc_process_state_35();
-    hw_misc_set_state_10();
-    hw_misc_set_state_9();
-    hw_misc_set_state_59();
-    video_set_hw_state_26();
+    hw_misc_irq_mask_a_enable_lower();
+    hw_misc_clear_all_irqs();
+    hw_misc_irq_enable_b_clear_bit0();
+    hw_misc_init_regs_1300_131d();
+    video_irq_routing_init();
 
     /* Enable the video-active flag */
     REG_VIDEO_FLAGS |= 0x8000000u;
 
     /* Read back HPD to detect changes since power-on */
-    video_check_state_38();
+    video_is_debug_flag_bit5_set();
 
     /* Enable the interrupt controller for video/audio events */
-    hw_misc_set_state_21();
+    hw_misc_enable_scb_irqs();
 
     /* Lower PendSV to lowest priority so HW IRQs always preempt the loop */
     set_system_priority();
@@ -783,12 +783,12 @@ int main(void)
      * Phase 1e: firmware integrity + HDCP key validation
      * ------------------------------------------------------------ */
     /*
-     * flash_efface_firmware_update() checks whether a pending firmware
+     * flash_apply_pending_update() checks whether a pending firmware
      * update exists in the secondary flash bank; if so it applies it and
      * returns the new image base address, otherwise it returns the primary
      * image address.
      */
-    int fw_image_base = flash_efface_firmware_update(0x40000);
+    int fw_image_base = flash_apply_pending_update(0x40000);
 
     /*
      * Parse the IMG4 manifest (IM4M) attached to the firmware image and
@@ -799,7 +799,7 @@ int main(void)
     crypto_init_and_parse_im4m(fw_image_base, unused_r1, unused_r2, unused_r3);
 
     /* Run the video state machine post-authentication step */
-    video_process_state_84();
+    video_poll_audio_mute_irq_wrapper();
 
     /* ---------------------------------------------------------------
      * Phase 1f: CEC and HPD assertion
@@ -820,33 +820,33 @@ int main(void)
          * Must wait for PHY to lock before enabling the I2C/DDC slave,
          * otherwise the source will see malformed EDID responses.
          */
-        video_check_state_38();
-        hw_misc_set_state_1();
+        video_is_debug_flag_bit5_set();
+        hw_misc_disable_clk_run_bits();
 
         /* Poll until both: FRL-status bit 25 is set AND PHY lock reads 0xAA */
         while ((REG_HDMI_FRL_STATUS & 0x2000000u) == 0u ||
                REG_HDMI_PHY_STATUS != 0xAAu) {
-            hw_misc_set_state_50();
+            hw_misc_kick_watchdog();
         }
     } else {
         /*
          * HDMI 2.1 FRL source — link training will be handled asynchronously
          * by the FRL state machine in the main loop.
          */
-        hw_misc_set_state_1();
+        hw_misc_disable_clk_run_bits();
     }
 
     /* ---------------------------------------------------------------
      * Phase 1g: post-HPD initialisation
      * ------------------------------------------------------------ */
     hw_misc_process_state_109();
-    video_set_hw_state_177();
+    video_sm_state_set_1();
 
     /*
      * If HPD changed during boot AND a sink was present at startup,
      * log a message so the host can detect the warm-plug scenario.
      */
-    if (video_check_state_20() && hpd_state_at_boot) {
+    if (video_is_active_and_not_muted() && hpd_state_at_boot) {
         custom_printf("HDMI_HPD changed during bootup\n");
         hpd_changed_during_boot = true;
     }
@@ -854,25 +854,25 @@ int main(void)
     /* ---------------------------------------------------------------
      * Phase 2: full peripheral initialisation
      * ------------------------------------------------------------ */
-    hw_misc_process_state_4();
-    hw_misc_process_state_6();
-    hw_misc_set_state_7();
-    hw_misc_set_state_6();
-    hw_misc_set_state_25();
-    hw_misc_init_state_6();
-    hw_misc_set_state_26();
+    hw_misc_handle_sink_count_change();
+    hw_misc_check_crash_magic();
+    hw_misc_set_reg_238_234();
+    hw_misc_clear_reg_2c4_bit20();
+    hw_misc_ddc_mode_init();
+    hw_misc_audio_earc_ctrl_init();
+    hw_misc_irq_routing_init();
 
     /* Pass the high byte of the HDMI config register as HDCP capability flags */
-    hw_misc_process_state_33((uint16_t)(REG_HDMI_CONFIG_REG >> 8));
+    hw_misc_apply_hdmi_cap_byte((uint16_t)(REG_HDMI_CONFIG_REG >> 8));
 
-    int hdcp_key_slot = hw_misc_set_state_73();
-    hw_misc_process_state_55(hdcp_key_slot, unused_r1, unused_r2);
+    int hdcp_key_slot = hw_misc_enable_hdcp_irq_mask();
+    hw_misc_hdcp_key_slot_init(hdcp_key_slot, unused_r1, unused_r2);
 
     /* Load the full HDMI capability register into the HDCP engine */
     hw_misc_process_state_107((int)REG_HDMI_CONFIG_REG);
 
     /* Enable HDCP authentication */
-    hw_misc_set_state_4();
+    hw_misc_enable_hdcp_auth_irq();
 
     /* ---------------------------------------------------------------
      * Phase 3: pre-loop setup  (only if not in "HPD changed" fast path)
@@ -881,16 +881,16 @@ int main(void)
         /*
          * Normal boot path: prepare the video pipeline for the first frame.
          */
-        video_check_state_38();
+        video_is_debug_flag_bit5_set();
         hw_misc_set_state_31();
-        hw_misc_process_state_43();
+        hw_misc_enable_top_irq_masks();
 
         /* Signal normal operation mode */
         REG_BOOT_FLAGS = 1u;
 
         /* Arm the video event queue */
-        video_set_state_124();
-        video_get_state_125(0x40168, 0);   /* 0x40168 = 262568 decimal */
+        video_clear_fatal_flag();
+        video_snapshot_event_time(0x40168, 0);   /* 0x40168 = 262568 decimal */
 
         /* Clear HPD debounce counter */
         REG_HPD_STATUS = 0u;
@@ -908,22 +908,22 @@ int main(void)
         for (;;) {
             /*
              * --- Hardware interrupt summary ---
-             * hw_misc_process_state_12() reads the top-level IRQ status
+             * hw_misc_top_irq_handler_and_yield() reads the top-level IRQ status
              * register and clears processed bits.  Its return value (in r0)
              * is passed to video_process_event_queue() which dispatches
              * queued video-path events.
              */
-            int irq_flags = hw_misc_process_state_12();
+            int irq_flags = hw_misc_top_irq_handler_and_yield();
             video_process_event_queue(irq_flags, unused_r1, unused_r2);
 
             /* Audio format detection (IEC 60958 / DSD / HBR) */
             audio_check_format_change();
 
             /* HDCP / DDC / CEC polling */
-            hw_misc_process_state_24();
+            hw_misc_poll_hpd_event_flags();
 
             /* Audio channel-status / info-frame state machine */
-            audio_state_machine_1();
+            audio_frl_fsm_tick();
 
             /*
              * SCDC (Status and Control Data Channel) periodic task:
@@ -931,46 +931,46 @@ int main(void)
              * link-training state machine.  Returns an event bitmask.
              */
             int scdc_events = scdc_periodic_task();
-            video_process_state_164(scdc_events, unused_r1, unused_r2);
+            video_update_timer_119_wrapper(scdc_events, unused_r1, unused_r2);
 
             /* eARC / audio state machine (handles H2.0 and H2.3 protocols) */
-            int audio_events = audio_process_state_33();
+            int audio_events = audio_h14_protocol_state_machine_kick();
 
             /* Video output pixel/timing state machine */
-            int video_events = video_state_machine_4(audio_events, unused_r1, unused_r2);
-            video_state_machine_3(video_events, unused_r1, unused_r2);
+            int video_events = video_fsm_drain_events_and_hpd(audio_events, unused_r1, unused_r2);
+            video_fsm_vpll_sm_state(video_events, unused_r1, unused_r2);
 
             /* Timer/housekeeping tick */
-            int hw_time = hw_misc_process_state_59();
-            audio_timer_update(hw_time, unused_r1, unused_r2);
+            int hw_time = hw_misc_poll_reg_492_49f();
+            audio_update_freq_ready_timers(hw_time, unused_r1, unused_r2);
 
             /* HDCP / repeater topology housekeeping */
             hw_misc_process_state_146();
             hw_misc_process_state_147();
 
             /* FRL link-rate adaptation */
-            hw_misc_process_state_34();
+            hw_misc_poll_audio_status_page9();
 
             /* Increment main-loop iteration counter (used for timeouts) */
             ++REG_VIDEO_LOOP_CTR;
 
             /* Video timer / blanking period handling */
-            int video_time = hw_misc_set_state_50();
-            video_timer_update_95(video_time, unused_r1, unused_r2);
+            int video_time = hw_misc_kick_watchdog();
+            video_update_timer_ed0(video_time, unused_r1, unused_r2);
 
             /* ---- Deferred audio/video event handling ---- */
 
             if (REG_VIDEO_IRQ_FLAGS & REG_VIDEO_IRQ_AUDIO_ON) {
                 /* Audio un-mute event from the source */
-                audio_set_hw_state_1(1);
+                audio_set_mute_ctrl_regs(1);
                 REG_VIDEO_IRQ_FLAGS &= ~REG_VIDEO_IRQ_AUDIO_ON;
             } else if (REG_VIDEO_IRQ_FLAGS & REG_VIDEO_IRQ_AUDIO_OFF) {
                 /* Audio mute event from the source */
-                audio_set_hw_state_1(0);
+                audio_set_mute_ctrl_regs(0);
                 REG_VIDEO_IRQ_FLAGS &= ~REG_VIDEO_IRQ_AUDIO_OFF;
             } else if (REG_VIDEO_IRQ_FLAGS & REG_VIDEO_IRQ_CEC) {
                 /* CEC topology-update event */
-                hw_misc_set_state_64();
+                hw_misc_clear_reg_38b();
                 REG_VIDEO_IRQ_FLAGS &= ~REG_VIDEO_IRQ_CEC;
             }
 
@@ -987,7 +987,7 @@ int main(void)
 
             /* audio_ready: tracks whether the audio PLL has locked */
             {
-                int cur = video_get_hw_state_31(0);
+                int cur = video_get_timing_lock_bit7(0);
                 if (cur != (int)REG_AUDIO_READY_SHADOW) {
                     REG_AUDIO_READY_SHADOW = (uint8_t)cur;
                     custom_printf("audio_ready change to %d\n", cur);
@@ -996,7 +996,7 @@ int main(void)
 
             /* audio_afifo: audio FIFO overflow/underflow flag */
             {
-                int cur = video_get_hw_state_28(0);
+                int cur = video_get_timing_lock_bit6(0);
                 if (cur != (int)REG_AUDIO_AFIFO_SHADOW) {
                     REG_AUDIO_AFIFO_SHADOW = (uint8_t)cur;
                     custom_printf("audio_afifo change to %d\n", cur);
@@ -1005,7 +1005,7 @@ int main(void)
 
             /* audio_abuffer: audio sample buffer depth */
             {
-                int cur = video_get_hw_state_27(0);
+                int cur = video_get_timing_lock_bit3(0);
                 if (cur != (int)REG_AUDIO_ABUF_SHADOW) {
                     REG_AUDIO_ABUF_SHADOW = (uint8_t)cur;
                     custom_printf("audio_abuffer change to %d\n", cur);

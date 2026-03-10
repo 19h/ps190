@@ -20,108 +20,108 @@
 int  ddc_write_request(int dev_addr, int reg_offset, uint16_t *req);
 int  ddc_transfer_abort_callback(void);
 int  ddc_read_request(int dev_addr, int reg_offset, uint8_t **req);
-int  hw_misc_check_state_3(void);
-int  hw_misc_set_state_48(void);
+int  hw_misc_is_sink_count_1(void);
+int  hw_misc_clear_reg_106e_106f(void);
 int  scdc_write_config_2(void);
 int  scdc_write_config_3(void);
 int  scdc_write_config_4(void);
-int  scdc_update_config_5(char rate);
-int  scdc_handle_event_11_32(void);
-int  scdc_execute_callback_or_default(void);
-int  scdc_calculate_and_set_clock(int rate);
-uint64_t hw_misc_process_state_82(uint64_t value);
-int  hw_misc_set_state_63(void);
-int  hw_misc_process_state_99(void);
+int  scdc_update_frl_trained_rate(char rate);
+int  scdc_handle_earc_32ch_event(void);
+int  scdc_handle_link_loss_timeout(void);
+int  scdc_calc_frl_audio_clock_div(int rate);
+uint64_t hw_misc_trunc_float64(uint64_t value);
+int  hw_misc_clear_reg_1996_bit2(void);
+int  hw_misc_check_reg_9b8_and_audio(void);
 int  hw_misc_process_state_152(void);
 int  hw_misc_process_state_154(void);
-int  scdc_process_pending_reads(void);
-int  scdc_enable_feature_1(void);
-int  scdc_state_transition_5(void);
+int  scdc_dispatch_pending_ddc_reqs(void);
+int  scdc_enable_frl_mode(void);
+int  scdc_fsm_enter_active_state(void);
 int  frl_txpll_enable_lol(void);
-int  frl_rate_set_0(void);
-int  frl_rate_set_2(void);
-int  frl_check_state_1(void);
-int  frl_process_state_2(void);
-int  frl_check_state_3(void);
-int  frl_process_state_4(void);
+int  frl_rate_set_scdc_state1(void);
+int  frl_rate_set_scdc_state5_7(void);
+int  frl_check_pll_lock(void);
+int  frl_fsm_advance_to_state4(void);
+int  frl_check_pattern_lock(void);
+int  frl_fsm_advance_to_state10(void);
 int  frl_get_rate_params(uint8_t *lane_cfg, uint8_t *rate_code);
-int  video_set_hw_state_29(void);
-int  video_process_state_33(void);
-int  video_set_hw_state_34(int muted, char idx);
-int  video_set_state_35(void);
-BOOL video_check_state_40(int value);
-int  video_check_state_41(void);
-int  video_process_state_44(void);
+int  video_update_audio_route_earc_ctrl(void);
+int  video_update_audio_infoframes(void);
+int  video_set_audio_fmt_reg(int muted, char idx);
+int  video_clear_h23_rdval_regs(void);
+BOOL video_check_bist_status(int value);
+int  video_is_debug_flag_bit4_set(void);
+int  video_h23_rd_mode_fsm_tick(void);
 int  video_enqueue_event(int event, int arg0, int arg1);
-int  video_get_hw_state_45(void);
-int  video_get_hw_state_46(void);
-int  video_get_hw_state_47(void);
-int  video_get_hw_state_48(void);
-int  video_get_hw_state_50(void);
-int  video_get_hw_state_53(void);
-int  video_get_hw_state_54(void);
-int  video_get_hw_state_55(void);
-int  video_set_hw_state_75(void);
+int  video_get_timing3(void);
+int  video_get_tmds_high(void);
+int  video_get_tmds_low(void);
+int  video_get_pixel_clock(void);
+int  video_get_timing2(void);
+int  video_get_timing4(void);
+int  video_get_timing1(void);
+int  video_get_timing0(void);
+int  video_update_h23_param0(void);
 int  video_math_pow2(int value);
-int  video_process_state_77(void);
+int  video_update_reg_1607_bit4(void);
 int  video_print_cs_regs(void);
-int  video_process_state_78(void);
-int  video_get_state_81(void);
-int  video_read_hw_buffer(int offset);
-int  video_set_state_112(void);
-int  video_process_state_120(void);
-unsigned int video_timer_update_122(uint8_t *timestamp, int a2, int a3);
-int  video_get_state_125(int base, int offset);
-int  video_check_hw_state_126(void);
-int  video_check_hw_state_127(void);
-int  video_state_machine_2(void);
-int  video_process_state_146(void);
-int  video_process_state_170(void);
+int  video_print_csb_status(void);
+int  video_get_h23_work_pending(void);
+int  video_read_h23_readbuf(int offset);
+int  video_update_h23_rdval_from_197c(void);
+int  video_update_reg_335_353_wrapper(void);
+unsigned int video_calc_elapsed_ticks(uint8_t *timestamp, int a2, int a3);
+int  video_snapshot_event_time(int base, int offset);
+int  video_check_mode_flags_bit10(void);
+int  video_check_mode_flags_bit11(void);
+int  video_fsm_poll_audio_and_h23(void);
+int  video_toggle_trained_mask_msb(void);
+int  video_trigger_scdc_event_84_cond2(void);
 
 /* Internal forward declarations used before definition order. */
-uint64_t audio_float_math_1(uint64_t bits);
+uint64_t audio_trunc_float64(uint64_t bits);
 int  audio_get_format(void);
-int  audio_mute_poll(int event);
-int  audio_set_format(char format);
-int  audio_update_hw_config(unsigned int cfg);
-int  audio_process_state_95(void);
-int  audio_set_state_96(int h23);
-int  audio_process_state_99(void);
-int  audio_process_state_100(void);
-int  audio_process_state_104(void);
-int  audio_get_hw_state_10(void);
-int  audio_get_hw_state_11(void);
-int  audio_get_hw_state_12(void);
-int  audio_set_hw_state_26(void);
-int  audio_set_hw_state_27(void);
-int  audio_get_state_81(void);
-int  audio_get_state_89(void);
-BOOL audio_check_state_84(void);
-int  audio_process_state_28(void);
-int  audio_process_state_37(void);
-int  audio_process_state_58(void);
-int  audio_process_state_71(void);
-BOOL audio_check_state_74(void);
-int  audio_handle_h23t_wr_str_man(void);
-int  audio_set_hw_state_24(void);
-int  audio_set_hw_state_29(void);
-int  audio_set_hw_state_30(void);
-int  audio_set_hw_state_38(void);
-int  audio_set_hw_state_57(void);
-int  audio_set_hw_state_63(void);
-int  audio_set_hw_state_65(void);
-int  audio_process_state_59(void);
-int  audio_process_state_82(void);
-int  audio_process_state_83(void);
-int  audio_get_state_91(void);
-int  audio_get_state_92(void);
-int  audio_check_state_42(void);
-int  audio_get_state_85(void);
-int  audio_process_state_73(void);
-int  audio_process_state_90(void);
-int  audio_set_hw_state_62(void);
-int  audio_set_hw_state_64(void);
-int  audio_set_hw_state_79(void);
+int  audio_poll_mute_status(int event);
+int  audio_set_output_mode(char format);
+int  audio_apply_port_config(unsigned int cfg);
+int  audio_scdc_cfg2_dispatch_pending(void);
+int  audio_protocol_set_mode(int h23);
+int  audio_calc_dispatch_pending_read(void);
+int  audio_calc_request_info_read(void);
+int  audio_scdc_cfg3_cfg4_dispatch_pending(void);
+int  audio_get_h14_status2(void);
+int  audio_get_h14_status1(void);
+int  audio_get_h14_status0(void);
+int  audio_h14_link_status_init(void);
+int  audio_aphy_ctrl2_set_bit31(void);
+int  audio_protocol_get_lanes(void);
+int  audio_protocol_get_channels(void);
+BOOL audio_protocol_check_status(void);
+int  audio_h14_protocol_retry_check(void);
+int  audio_h14_protocol_state_machine_kick_zero(void);
+int  audio_h23_cfg_state_reset_full(void);
+int  audio_h23_substate_advance_to_0(void);
+BOOL audio_h23_check_pkt0_bit1(void);
+int  audio_h23_tx_write_str_manual(void);
+int  audio_aphy_ctrl2_pulse_bit1(void);
+int  audio_irq_ack_a_bit4(void);
+int  audio_irq_ack_ab_bit4(void);
+int  audio_h14_clear_timers_and_protocol(void);
+int  audio_h23_link_flags_set_bit6(void);
+int  audio_h23_link_flags_b_set_bit3(void);
+int  audio_h23_link_flags_ab_clear_bit3(void);
+int  audio_h23_link_flags_init(void);
+int  audio_protocol_set_rd_flags(void);
+int  audio_protocol_clear_rd_flags(void);
+int  audio_protocol_get_mode(void);
+int  audio_protocol_get_state_code(void);
+int  audio_h23_check_readbuf_sel21(void);
+int  audio_protocol_get_status_bit(void);
+int  audio_h23_rd_cmd_set_bit0(void);
+int  audio_protocol_start_machine(void);
+int  audio_h23_link_flags_b_set_bit4(void);
+int  audio_h23_link_flags_ab_clear_bit4(void);
+int  audio_h23_substate_reset(void);
 
 /* ========================================================================= */
 /* Local SRAM / register aliases                                              */
@@ -473,7 +473,7 @@ static int audio_process_state_53_log_string(int a1, int a2, int a3, char a4)
 /* Audio parameter helpers                                                    */
 /* ========================================================================= */
 
-int audio_calculate_param_1(uint8_t *data)
+int audio_calc_pll_fractional_param(uint8_t *data)
 {
     AUDIO_TASK_GUARD();
     uint32_t sample = data[0];
@@ -484,7 +484,7 @@ int audio_calculate_param_1(uint8_t *data)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_calculate_param_2(int count, unsigned int coeff, int unused_a3,
+BOOL audio_verify_pll_lock_window(int count, unsigned int coeff, int unused_a3,
                              unsigned int limit, unsigned int divisor,
                              int unused_a6, unsigned int scale_bits, int ref_delta)
 {
@@ -525,7 +525,7 @@ BOOL audio_calculate_param_2(int count, unsigned int coeff, int unused_a3,
     AUDIO_TASK_RETURN(ok);
 }
 
-unsigned int audio_calculate_param_3(void)
+unsigned int audio_calc_oversample_threshold(void)
 {
     AUDIO_TASK_GUARD();
 
@@ -554,7 +554,7 @@ unsigned int audio_calculate_param_3(void)
     AUDIO_TASK_RETURN((threshold + 2u) / 3u);
 }
 
-int audio_calculate_param_4(int ctx)
+int audio_calc_n_cts_ratio(int ctx)
 {
     AUDIO_TASK_GUARD();
     uint8_t flags = REG_AUDIO_H14_FLAGS;
@@ -569,12 +569,12 @@ int audio_calculate_param_4(int ctx)
     (void)factor;
 
     float scaled = ratio * 1000000.0f;
-    uint64_t normalized = hw_misc_process_state_82(double_to_bits((double)scaled));
+    uint64_t normalized = hw_misc_trunc_float64(double_to_bits((double)scaled));
     *(uint16_t *)(ctx + 22) = (uint16_t)(float64_integral_bits_to_u32(normalized) + 512u);
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_calculate_param_5(int a1, int a2, int a3, int a4, int a5, int a6,
+BOOL audio_calc_tmds_pixel_clk_ratio(int a1, int a2, int a3, int a4, int a5, int a6,
                              int a7, uint16_t *out)
 {
     (void)a1; (void)a2; (void)a3; (void)a4; (void)a5; (void)a7;
@@ -584,7 +584,7 @@ BOOL audio_calculate_param_5(int a1, int a2, int a3, int a4, int a5, int a6,
     float delta = ((float)REG_AUDIO_TMDS_CLOCK - pixel) * pixel;
     float ratio = safe_divf((float)REG_AUDIO_PLL_REFCLK, delta);
     uint16_t measured = (uint16_t)float64_integral_bits_to_u32(
-        hw_misc_process_state_82(double_to_bits((double)ratio)));
+        hw_misc_trunc_float64(double_to_bits((double)ratio)));
     uint16_t min_value = (uint16_t)(a6 >> 16);
     if (measured < min_value)
         measured = min_value;
@@ -595,13 +595,13 @@ BOOL audio_calculate_param_5(int a1, int a2, int a3, int a4, int a5, int a6,
         candidate = centered;
 
     float result = candidate * 0.25f;
-    uint64_t rounded = audio_float_math_1(double_to_bits((double)result));
+    uint64_t rounded = audio_trunc_float64(double_to_bits((double)result));
     uint16_t final = (uint16_t)float64_integral_bits_to_u32(rounded);
     *out = final;
     AUDIO_TASK_RETURN(min_value <= final);
 }
 
-int audio_calculate_param_6(unsigned int value_bits, uint8_t *ctx, int a3)
+int audio_calc_step_divisor(unsigned int value_bits, uint8_t *ctx, int a3)
 {
     (void)a3;
     AUDIO_TASK_GUARD();
@@ -617,7 +617,7 @@ int audio_calculate_param_6(unsigned int value_bits, uint8_t *ctx, int a3)
 
     float divisor = (float)ctx[0];
     float ratio = safe_divf(safe_divf(product, step), divisor);
-    uint64_t rounded = audio_float_math_1(double_to_bits((double)ratio));
+    uint64_t rounded = audio_trunc_float64(double_to_bits((double)ratio));
     ((uint16_t *)ctx)[4] = (uint16_t)float64_integral_bits_to_u32(rounded);
     AUDIO_TASK_RETURN((int)saved_task);
 }
@@ -771,7 +771,7 @@ int audio_earc_irq_handler(uint8_t *packet)
             case 2: custom_printf("EC_FSM_CHG %02x\n", b); break;
             case 3:
                 custom_printf("FMT_STB \n");
-                video_process_state_78();
+                video_print_csb_status();
                 video_print_cs_regs();
                 break;
             case 4: custom_printf("EC_HPD_CHG %02x\n", b); break;
@@ -788,11 +788,11 @@ int audio_earc_irq_handler(uint8_t *packet)
         __enable_irq();
         uint8_t old_mode = REG_AUDIO_ROUTE_MODE;
         __disable_irq();
-        audio_update_hw_config(cfg);
+        audio_apply_port_config(cfg);
         __enable_irq();
         if (old_mode != REG_AUDIO_ROUTE_MODE) {
             __disable_irq();
-            video_process_state_33();
+            video_update_audio_infoframes();
             __enable_irq();
         }
         custom_printf("DPCD_TDM_CFG chg %02x\n", (unsigned)cfg);
@@ -815,7 +815,7 @@ int audio_earc_irq_handler(uint8_t *packet)
         break;
     case 109:
         custom_printf("I2S_CH_STA_B4_CHG %02x -> %02x\n", b, a);
-        video_process_state_78();
+        video_print_csb_status();
         video_print_cs_regs();
         break;
     case 127:
@@ -850,7 +850,7 @@ int audio_earc_irq_handler(uint8_t *packet)
     case 128: custom_printf("EARC_2T8_WA_CHANGE: %x\n", a); break;
     case 129: custom_printf("MUTE_INT_EVT\n"); break;
     case 130:
-        audio_mute_poll((int)(uint16_t)(a | ((uint16_t)b << 8)));
+        audio_poll_mute_status((int)(uint16_t)(a | ((uint16_t)b << 8)));
         custom_printf("MUTE IRQ %02x %02x\n", a, b);
         break;
     case 133:
@@ -873,13 +873,13 @@ int audio_get_format(void)
     return REG_AUDIO_FORMAT & 7u;
 }
 
-int audio_timer_update(int a1, int a2, int a3)
+int audio_update_freq_ready_timers(int a1, int a2, int a3)
 {
     (void)a1;
     AUDIO_TASK_GUARD();
 
     if (REG_AUDIO_FREQREADY_TIMER != 0u) {
-        uint32_t elapsed = video_timer_update_122(REG_AUDIO_FREQREADY_TS, a2, a3);
+        uint32_t elapsed = video_calc_elapsed_ticks(REG_AUDIO_FREQREADY_TS, a2, a3);
         if (REG_AUDIO_FREQREADY_TIMER <= elapsed)
             REG_AUDIO_FREQREADY_TIMER = 0;
         else
@@ -901,7 +901,7 @@ int audio_timer_update(int a1, int a2, int a3)
     }
 
     if (REG_AUDIO_EN_SEL_TIMER != 0u) {
-        uint32_t elapsed = video_timer_update_122(REG_AUDIO_EN_SEL_TS, a2, a3);
+        uint32_t elapsed = video_calc_elapsed_ticks(REG_AUDIO_EN_SEL_TS, a2, a3);
         if (REG_AUDIO_EN_SEL_TIMER <= elapsed)
             REG_AUDIO_EN_SEL_TIMER = 0;
         else
@@ -909,7 +909,7 @@ int audio_timer_update(int a1, int a2, int a3)
 
         if (REG_AUDIO_EN_SEL_TIMER == 0u) {
             __disable_irq();
-            video_set_hw_state_29();
+            video_update_audio_route_earc_ctrl();
             __enable_irq();
             custom_printf("AUD_EN_SEL_S Rel\n");
             REG_AUDIO_FIFO_DEBUG++;
@@ -922,7 +922,7 @@ int audio_timer_update(int a1, int a2, int a3)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_mute_poll(int event)
+int audio_poll_mute_status(int event)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_MUTE_POLL_SHADOW != (uint16_t)event) {
@@ -934,9 +934,9 @@ int audio_mute_poll(int event)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_get_freq_constant(char value);
+int audio_lookup_mute_freq_a(char value);
 
-int audio_handle_mute_event(int muted)
+int audio_apply_mute_and_freq(int muted)
 {
     AUDIO_TASK_GUARD();
     uint8_t prev = REG_AUDIO_MUTE_ACTIVE;
@@ -945,7 +945,7 @@ int audio_handle_mute_event(int muted)
         *(volatile uint8_t *)0x40100ED8 = 0xFFu;
         *(volatile uint8_t *)0x40100ED9 = 0xFFu;
 
-        int freq_constant = audio_get_freq_constant((char)REG_AUDIO_MUTE_FORMAT);
+        int freq_constant = audio_lookup_mute_freq_a((char)REG_AUDIO_MUTE_FORMAT);
         if (freq_constant == 0xFFFF)
             AUDIO_TASK_RETURN((int)saved_task);
 
@@ -966,7 +966,7 @@ int audio_handle_mute_event(int muted)
         REG_AUDIO_MUTE_ACTIVE = 1;
         *(volatile uint8_t *)0x40100EDB = idx;
         *(volatile uint8_t *)0x40101625 &= (uint8_t)~0x40u;
-        video_set_hw_state_34(0, (char)idx);
+        video_set_audio_fmt_reg(0, (char)idx);
         if (REG_AUDIO_MUTE_FREQ_IDX != idx)
             REG_AUDIO_FREQREADY_TOGGLE = 0;
         REG_AUDIO_MUTE_FREQ_IDX = idx;
@@ -975,18 +975,18 @@ int audio_handle_mute_event(int muted)
         REG_AUDIO_FREQREADY_TOGGLE = 0xFFu;
         REG_AUDIO_MUTE_FREQ_IDX = 0xFFu;
         *(volatile uint8_t *)0x40101625 |= 0x40u;
-        video_set_hw_state_34(1, 0);
+        video_set_audio_fmt_reg(1, 0);
     }
 
     if (prev != REG_AUDIO_MUTE_ACTIVE) {
-        video_process_state_33();
+        video_update_audio_infoframes();
         if (prev != 0 && REG_AUDIO_MUTE_ACTIVE == 0)
             video_enqueue_event(128, 0, 0);
         else
             video_enqueue_event(128, 1, 0);
         REG_AUDIO_EN_SEL_TIMER = 2;
-        video_get_state_125(263112, 1);
-        video_set_hw_state_29();
+        video_snapshot_event_time(263112, 1);
+        video_update_audio_route_earc_ctrl();
     }
 
     AUDIO_TASK_RETURN((int)saved_task);
@@ -997,13 +997,13 @@ int audio_check_format_change(void)
     AUDIO_TASK_GUARD();
     uint8_t format = REG_AUDIO_DPCD_CAP;
     if (REG_AUDIO_FORMAT_SHADOW != format) {
-        audio_set_format((char)format);
+        audio_set_output_mode((char)format);
         REG_AUDIO_FORMAT_SHADOW = format;
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_format(char format)
+int audio_set_output_mode(char format)
 {
     AUDIO_TASK_GUARD();
     uint8_t prev = REG_AUDIO_OUTPUT_MODE;
@@ -1016,12 +1016,12 @@ int audio_set_format(char format)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_extract_bit_4(unsigned int value) { return (value >> 4) & 1u; }
-int audio_extract_bits_5_6(unsigned int value) { return (value >> 5) & 3u; }
-int audio_extract_bits_0_2(char value) { return value & 7; }
-int audio_extract_bits_complex(int16_t value) { return ((value & 8) == 0) | ((uint16_t)(value & 0x6000u) >> 12); }
-int audio_extract_bits_8_9(unsigned int value) { return (value >> 8) & 3u; }
-int audio_extract_bits_10_12(unsigned int value)
+int audio_get_fmt_bit4(unsigned int value) { return (value >> 4) & 1u; }
+int audio_get_fmt_bits5_6(unsigned int value) { return (value >> 5) & 3u; }
+int audio_get_fmt_bits0_2(char value) { return value & 7; }
+int audio_get_fmt_complex(int16_t value) { return ((value & 8) == 0) | ((uint16_t)(value & 0x6000u) >> 12); }
+int audio_get_route_mode(unsigned int value) { return (value >> 8) & 3u; }
+int audio_get_sample_width(unsigned int value)
 {
     uint8_t bits = (value >> 10) & 7u;
     if (bits == 0u)
@@ -1032,12 +1032,12 @@ int audio_extract_bits_10_12(unsigned int value)
 }
 int audio_get_highest_bit(unsigned int mask) { return highest_set_bit_or_ff(mask); }
 
-int audio_update_hw_config(unsigned int cfg)
+int audio_apply_port_config(unsigned int cfg)
 {
     AUDIO_TASK_GUARD();
 
-    uint8_t route_mode = (uint8_t)audio_extract_bits_8_9(cfg);
-    uint8_t sample_width = (uint8_t)audio_extract_bits_10_12(cfg);
+    uint8_t route_mode = (uint8_t)audio_get_route_mode(cfg);
+    uint8_t sample_width = (uint8_t)audio_get_sample_width(cfg);
     bool dirty = false;
 
     if (route_mode != REG_AUDIO_ROUTE_MODE) {
@@ -1053,8 +1053,8 @@ int audio_update_hw_config(unsigned int cfg)
         dirty = true;
         if (audio_get_format() == 4) {
             REG_AUDIO_HW_CFG_DIRTY = 2;
-            video_get_state_125(263112, 1);
-            video_set_hw_state_29();
+            video_snapshot_event_time(263112, 1);
+            video_update_audio_route_earc_ctrl();
         }
     }
 
@@ -1070,21 +1070,21 @@ int audio_update_hw_config(unsigned int cfg)
         REG_AUDIO_PORTCFG_ERR |= 2u;
     } else {
         REG_AUDIO_PORTCFG_CH &= 0xF8u;
-        REG_AUDIO_PORTCFG_CH |= (uint8_t)audio_extract_bits_0_2((char)cfg);
+        REG_AUDIO_PORTCFG_CH |= (uint8_t)audio_get_fmt_bits0_2((char)cfg);
         REG_AUDIO_PORTCFG_FMT &= 0xE0u;
-        REG_AUDIO_PORTCFG_FMT |= (uint8_t)audio_extract_bit_4(cfg);
-        REG_AUDIO_PORTCFG_MID = (uint8_t)audio_extract_bits_5_6(cfg);
+        REG_AUDIO_PORTCFG_FMT |= (uint8_t)audio_get_fmt_bit4(cfg);
+        REG_AUDIO_PORTCFG_MID = (uint8_t)audio_get_fmt_bits5_6(cfg);
         REG_AUDIO_PORTCFG_LOW &= 0x8Cu;
         REG_AUDIO_PORTCFG_LOW |= (uint8_t)(route_mode | (sample_width << 4));
         REG_AUDIO_PORTCFG_HIGH &= 0x0Fu;
-        REG_AUDIO_PORTCFG_HIGH |= (uint8_t)(audio_extract_bits_complex((int16_t)cfg) << 4);
+        REG_AUDIO_PORTCFG_HIGH |= (uint8_t)(audio_get_fmt_complex((int16_t)cfg) << 4);
         REG_AUDIO_PORTCFG_ERR &= (uint8_t)~2u;
     }
 
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_idle_state_transition(void)
+int audio_check_idle_timeout(void)
 {
     AUDIO_TASK_GUARD();
     bool changed = false;
@@ -1095,7 +1095,7 @@ int audio_idle_state_transition(void)
         REG_AUDIO_IDLE_COUNTDOWN--;
         if (REG_AUDIO_IDLE_COUNTDOWN == 0u && format == 1 && REG_AUDIO_IDLE2_ACTIVE == 0u) {
             REG_AUDIO_IDLE2_ACTIVE = 1;
-            video_process_state_77();
+            video_update_reg_1607_bit4();
             changed = true;
             REG_AUDIO_HPD_NOTIFY |= 1u;
             REG_AUDIO_HPD_NOTIFY |= 2u;
@@ -1109,23 +1109,23 @@ int audio_idle_state_transition(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_is_feature_enabled(void) { return (REG_AUDIO_MODE_FLAGS >> 9) & 1u; }
+int audio_is_mode_flag_9_set(void) { return (REG_AUDIO_MODE_FLAGS >> 9) & 1u; }
 
-int audio_read_config_126(void)
+int audio_read_hw_buf_126(void)
 {
     AUDIO_TASK_GUARD();
-    int result = video_read_hw_buffer(126);
+    int result = video_read_h23_readbuf(126);
     AUDIO_TASK_RETURN(result);
 }
 
-BOOL audio_check_config_0_1(void)
+BOOL audio_check_hw_buf_magic(void)
 {
     AUDIO_TASK_GUARD();
-    BOOL ok = (video_read_hw_buffer(0) == 0) && (video_read_hw_buffer(1) == 255);
+    BOOL ok = (video_read_h23_readbuf(0) == 0) && (video_read_h23_readbuf(1) == 255);
     AUDIO_TASK_RETURN(ok);
 }
 
-int audio_set_hw_state_1(int enable)
+int audio_set_mute_ctrl_regs(int enable)
 {
     __disable_irq();
     REG_AUDIO_MUTE_CTRL = enable ? 0x80u : 0x81u;
@@ -1137,7 +1137,7 @@ int audio_set_hw_state_1(int enable)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_set_hw_state_2(char value)
+int audio_write_h23_manual_data(char value)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_H23_MANUAL_CTRL &= (uint8_t)~4u;
@@ -1150,19 +1150,19 @@ int audio_set_hw_state_2(char value)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_check_config_a1(int value)
+BOOL audio_check_hw_buf_a1(int value)
 {
     AUDIO_TASK_GUARD();
-    BOOL ok = video_read_hw_buffer(value << 7) == 2;
+    BOOL ok = video_read_h23_readbuf(value << 7) == 2;
     AUDIO_TASK_RETURN(ok);
 }
 
-uint64_t audio_float_math_1(uint64_t bits)
+uint64_t audio_trunc_float64(uint64_t bits)
 {
     return float64_trunc_to_integral_bits(bits);
 }
 
-int audio_execute_callback(int which)
+int audio_exec_earc_cb(int which)
 {
     AUDIO_TASK_GUARD();
     void (*cb)(void) = (void (*)(void))REG_AUDIO_EARC_CALLBACK;
@@ -1170,7 +1170,7 @@ int audio_execute_callback(int which)
     if (which == 1) {
         if (cb != NULL)
             cb();
-        scdc_update_config_5((char)REG_AUDIO_FRL_RATE);
+        scdc_update_frl_trained_rate((char)REG_AUDIO_FRL_RATE);
     } else if (which == 2 && REG_AUDIO_EARC_CALLBACK_BUSY == 0u && cb != NULL) {
         cb();
     }
@@ -1178,24 +1178,24 @@ int audio_execute_callback(int which)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_event_97(void)
+int audio_enqueue_scdc_event_97(void)
 {
     AUDIO_TASK_GUARD();
     video_enqueue_event(97, 0, 0);
-    scdc_execute_callback_or_default();
+    scdc_handle_link_loss_timeout();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_event_98(void)
+int audio_enqueue_scdc_event_98(void)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_IRQ_EVENT_LOG = 1;
     video_enqueue_event(98, 0, 0);
-    scdc_execute_callback_or_default();
+    scdc_handle_link_loss_timeout();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_event_97_alt(void)
+int audio_trigger_scdc_irq_97(void)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_SCDC_IRQ_MASK |= 1u;
@@ -1203,7 +1203,7 @@ int audio_handle_event_97_alt(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_event_98_alt(void)
+int audio_trigger_scdc_irq_98(void)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_SCDC_IRQ_MASK |= 1u;
@@ -1211,7 +1211,7 @@ int audio_handle_event_98_alt(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_3(int pattern)
+int audio_trigger_route_chain(int pattern)
 {
     AUDIO_TASK_GUARD();
     bool state = false;
@@ -1233,17 +1233,17 @@ int audio_set_hw_state_3(int pattern)
     AUDIO_TASK_RETURN(pattern);
 }
 
-int audio_reset_state(void)
+int audio_reset_to_frl_mode(void)
 {
     AUDIO_TASK_GUARD();
-    scdc_enable_feature_1();
-    video_process_state_170();
+    scdc_enable_frl_mode();
+    video_trigger_scdc_event_84_cond2();
     REG_AUDIO_ROUTE_SEL = 4;
-    hw_misc_set_state_48();
+    hw_misc_clear_reg_106e_106f();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_callback(uint16_t *req)
+int audio_handle_earc_capability_cb(uint16_t *req)
 {
     AUDIO_TASK_GUARD();
     if (req != NULL) {
@@ -1264,7 +1264,7 @@ int audio_process_callback(uint16_t *req)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_callback_alt(void)
+int audio_write_earc_capability(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_EARC_CAPABLE != 0u)
@@ -1272,7 +1272,7 @@ int audio_process_callback_alt(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_event_99(int failed, int unused_ptr, int trained_mask)
+int audio_handle_frl_training_result(int failed, int unused_ptr, int trained_mask)
 {
     (void)unused_ptr;
     AUDIO_TASK_GUARD();
@@ -1297,7 +1297,7 @@ int audio_handle_event_99(int failed, int unused_ptr, int trained_mask)
         if (REG_AUDIO_FRL_TRAIN_MODE != 0u) {
             if (REG_AUDIO_FRL_TRAIN_MODE == 1u) {
                 if (REG_AUDIO_DDC_RATE_LATCH == 0xFFu) {
-                    video_process_state_146();
+                    video_toggle_trained_mask_msb();
                     int best = audio_get_highest_bit(REG_AUDIO_DDC_RATE_MASK);
                     if (best == 255) {
                         int fallback = audio_get_highest_bit(REG_AUDIO_DDC_RATE_FAILED);
@@ -1331,12 +1331,12 @@ int audio_handle_event_99(int failed, int unused_ptr, int trained_mask)
             REG_AUDIO_EARC_RATE = REG_AUDIO_FRL_RATE;
             uint8_t lane_cfg = 0;
             frl_get_rate_params(&lane_cfg, &rate_param);
-            scdc_calculate_and_set_clock(lane_cfg);
+            scdc_calc_frl_audio_clock_div(lane_cfg);
         } else {
             REG_AUDIO_EARC_READY = 0;
             REG_AUDIO_EARC_LANE_MASK = 0;
             REG_AUDIO_EARC_RATE = 0;
-            video_process_state_120();
+            video_update_reg_335_353_wrapper();
         }
 
         if (REG_AUDIO_EARC_USER_CB != 0u) {
@@ -1348,7 +1348,7 @@ int audio_handle_event_99(int failed, int unused_ptr, int trained_mask)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_4(void)
+int audio_init_spdif_i2s_regs(void)
 {
     *(volatile uint8_t  *)0x40100238 = 4;
     *(volatile uint8_t  *)0x4010023A = 6;
@@ -1360,28 +1360,28 @@ int audio_set_hw_state_4(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_process_pending_tasks(void)
+int audio_dispatch_pending_scdc_tasks(void)
 {
     AUDIO_TASK_GUARD();
-    if (!audio_process_state_104() && !scdc_process_pending_reads() && !audio_process_state_99())
-        audio_process_state_95();
+    if (!audio_scdc_cfg3_cfg4_dispatch_pending() && !scdc_dispatch_pending_ddc_reqs() && !audio_calc_dispatch_pending_read())
+        audio_scdc_cfg2_dispatch_pending();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_float_math_2(int ctx)
+int audio_calc_float_ratio(int ctx)
 {
     AUDIO_TASK_GUARD();
     float divisor = (float)*(uint16_t *)(ctx + 8);
     float value = 1.0f - bits_to_float(*(uint32_t *)(ctx + 4));
     float result = safe_divf(value, divisor);
-    uint64_t rounded = audio_float_math_1(double_to_bits((double)result));
+    uint64_t rounded = audio_trunc_float64(double_to_bits((double)result));
     *(uint16_t *)(ctx + 20) = (uint16_t)float64_integral_bits_to_u32(rounded);
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_get_hw_state_5(void) { return REG_AUDIO_CS_SAMPLE; }
+int audio_get_cs_sample(void) { return REG_AUDIO_CS_SAMPLE; }
 
-int audio_get_freq_constant(char value)
+int audio_lookup_mute_freq_a(char value)
 {
     int masked = value & 0xCF;
     switch (masked) {
@@ -1399,7 +1399,7 @@ int audio_get_freq_constant(char value)
     }
 }
 
-int audio_get_freq_constant_2(unsigned int idx)
+int audio_lookup_mute_freq_b(unsigned int idx)
 {
     return (idx < 12u) ? REG_AUDIO_MUTE_TABLE_B[idx] : 0xFFFF;
 }
@@ -1411,12 +1411,12 @@ int audio_get_bit_depth(int value)
     return 32;
 }
 
-int audio_get_hw_state_6(void)
+int audio_get_fifo_index_val(void)
 {
     return *(volatile uint32_t *)(0x26DFCu + 4u * ((REG_AUDIO_FIFO_INDEX >> 2) & 3u));
 }
 
-int audio_get_hw_state_7(void)
+int audio_get_mode_flags_type(void)
 {
     switch ((HIBYTE(REG_AUDIO_MODE_FLAGS) & 3u)) {
     case 3: return 4;
@@ -1426,7 +1426,7 @@ int audio_get_hw_state_7(void)
     }
 }
 
-int audio_check_state_array(unsigned int state, uint8_t *array)
+int audio_evaluate_state_array(unsigned int state, uint8_t *array)
 {
     bool upper = (array[0] != 0u) || (array[2] != 0u);
     bool lower = (array[1] != 0u) || (array[3] != 0u);
@@ -1439,26 +1439,26 @@ int audio_check_state_array(unsigned int state, uint8_t *array)
     return (int)state;
 }
 
-int audio_update_hw_states(void)
+int audio_sync_tmds_pixel_clocks(void)
 {
     AUDIO_TASK_GUARD();
 
-    uint16_t h14_clk = (uint16_t)audio_get_hw_state_12();
+    uint16_t h14_clk = (uint16_t)audio_get_h14_status0();
     if (h14_clk != 0u) {
         REG_AUDIO_TMDS_CLOCK = h14_clk;
-        *(volatile uint16_t *)0x4109E = (uint16_t)audio_get_hw_state_11();
-        REG_AUDIO_TIMING3 = (uint16_t)(audio_get_hw_state_10() & 0x7FFF);
+        *(volatile uint16_t *)0x4109E = (uint16_t)audio_get_h14_status1();
+        REG_AUDIO_TIMING3 = (uint16_t)(audio_get_h14_status2() & 0x7FFF);
     } else {
-        REG_AUDIO_TMDS_CLOCK = (uint16_t)video_get_hw_state_47();
-        *(volatile uint16_t *)0x4109E = (uint16_t)video_get_hw_state_46();
-        REG_AUDIO_TIMING3 = (uint16_t)(video_get_hw_state_45() & 0x7FFF);
+        REG_AUDIO_TMDS_CLOCK = (uint16_t)video_get_tmds_low();
+        *(volatile uint16_t *)0x4109E = (uint16_t)video_get_tmds_high();
+        REG_AUDIO_TIMING3 = (uint16_t)(video_get_timing3() & 0x7FFF);
     }
 
-    REG_AUDIO_PIXEL_CLOCK = (uint16_t)video_get_hw_state_48();
-    REG_AUDIO_TIMING0 = (uint16_t)video_get_hw_state_55();
-    REG_AUDIO_TIMING1 = (uint16_t)video_get_hw_state_54();
-    REG_AUDIO_TIMING2 = (uint16_t)video_get_hw_state_50();
-    REG_AUDIO_TIMING4 = (uint16_t)(video_get_hw_state_53() & 0x7FFF);
+    REG_AUDIO_PIXEL_CLOCK = (uint16_t)video_get_pixel_clock();
+    REG_AUDIO_TIMING0 = (uint16_t)video_get_timing0();
+    REG_AUDIO_TIMING1 = (uint16_t)video_get_timing1();
+    REG_AUDIO_TIMING2 = (uint16_t)video_get_timing2();
+    REG_AUDIO_TIMING4 = (uint16_t)(video_get_timing4() & 0x7FFF);
 
     if ((int)REG_AUDIO_TIMING0 - (int)REG_AUDIO_TIMING2 - (int)REG_AUDIO_TIMING1 >= 2)
         REG_AUDIO_H14_TIMEOUT_SCALE = 80;
@@ -1468,52 +1468,52 @@ int audio_update_hw_states(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_get_state_8(void) { return *(volatile uint8_t *)0x40434; }
-int audio_set_hw_state_9(void) { *(volatile uint32_t *)0x40100440 |= 0x4000u; return (int)REG_TCB_CURRENT_TASK; }
-int audio_get_hw_state_10(void) { return REG_AUDIO_H14_STATUS2; }
-int audio_get_hw_state_11(void) { return REG_AUDIO_H14_STATUS1; }
-int audio_get_hw_state_12(void) { return REG_AUDIO_H14_STATUS0; }
-int audio_get_hw_state_13(void) { return (*(volatile uint32_t *)0x40101AF4 >> 8) & 7u; }
-int audio_get_hw_state_14(void) { return (REG_AUDIO_STATUS_REG >> 29) & 1u; }
-int audio_get_hw_state_15(void) { return *(volatile uint8_t *)0x40101AF4 & 0x7Fu; }
+int audio_get_status_lat(void) { return *(volatile uint8_t *)0x40434; }
+int audio_set_ext_ctrl_4000(void) { *(volatile uint32_t *)0x40100440 |= 0x4000u; return (int)REG_TCB_CURRENT_TASK; }
+int audio_get_h14_status2(void) { return REG_AUDIO_H14_STATUS2; }
+int audio_get_h14_status1(void) { return REG_AUDIO_H14_STATUS1; }
+int audio_get_h14_status0(void) { return REG_AUDIO_H14_STATUS0; }
+int audio_get_status_reg_bits8_10(void) { return (*(volatile uint32_t *)0x40101AF4 >> 8) & 7u; }
+int audio_get_status_reg_bit29(void) { return (REG_AUDIO_STATUS_REG >> 29) & 1u; }
+int audio_get_status_reg_bits0_6(void) { return *(volatile uint8_t *)0x40101AF4 & 0x7Fu; }
 
 /* ========================================================================= */
 /* H14 / H23 state helpers                                                    */
 /* ========================================================================= */
 
-int audio_process_state_16(void)
+int audio_h14_fsm_init(void)
 {
     AUDIO_TASK_GUARD();
-    audio_set_hw_state_26();
+    audio_h14_link_status_init();
     REG_AUDIO_FSM_PENDING = 1;
     REG_AUDIO_CAP_FLAGS = 0;
     REG_AUDIO_DISCOVERY_FLAGS = 0;
     REG_AUDIO_EXT_CTRL = REG_AUDIO_EXT_CTRL;
     REG_AUDIO_EE_PENDING = 0;
     REG_AUDIO_STATE96_TRIGGER |= 1u;
-    audio_set_state_96(0);
+    audio_protocol_set_mode(0);
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_17(void) { REG_AUDIO_APHY_CTRL1 |= 0x300u; return (int)REG_TCB_CURRENT_TASK; }
+int audio_aphy_ctrl1_set_300(void) { REG_AUDIO_APHY_CTRL1 |= 0x300u; return (int)REG_TCB_CURRENT_TASK; }
 
-int audio_process_state_18(void)
+int audio_h14_fsm_check_pending(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_FSM_PENDING == 1u || REG_AUDIO_FSM_PENDING == 2u)
-        audio_set_hw_state_27();
+        audio_aphy_ctrl2_set_bit31();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_19(void)
+int audio_h14_aphy_configure_lanes(void)
 {
     AUDIO_TASK_GUARD();
     bool invalid = false;
     REG_AUDIO_APHY_CTRL0 = 0;
     REG_AUDIO_APHY_CTRL1 = 0;
 
-    uint32_t channels = (uint32_t)audio_get_state_89() + 1u;
-    uint32_t lanes = (uint32_t)audio_get_state_81() + 1u;
+    uint32_t channels = (uint32_t)audio_protocol_get_channels() + 1u;
+    uint32_t lanes = (uint32_t)audio_protocol_get_lanes() + 1u;
 
     if (channels > 0x1Fu) {
         REG_AUDIO_APHY_CTRL0 |= 0x80u;
@@ -1525,59 +1525,59 @@ int audio_process_state_19(void)
     }
 
     if (invalid) {
-        audio_set_hw_state_27();
+        audio_aphy_ctrl2_set_bit31();
         REG_AUDIO_FSM_PENDING = 0;
     } else {
         REG_AUDIO_APHY_CTRL0 |= (uint8_t)channels;
         REG_AUDIO_APHY_CTRL1 |= (uint8_t)lanes;
-        audio_set_hw_state_24();
+        audio_aphy_ctrl2_pulse_bit1();
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_20(void)
+int audio_h14_aphy_check_status(void)
 {
     AUDIO_TASK_GUARD();
-    if (audio_get_state_92() == 20) {
+    if (audio_protocol_get_state_code() == 20) {
         if ((REG_AUDIO_APHY_STATUS & 2u) != 0u) {
-            audio_set_hw_state_30();
+            audio_irq_ack_ab_bit4();
             REG_AUDIO_HW_EVENT_MASK |= 0x02000000u;
             if (REG_AUDIO_FSM_PENDING_B != 0u) {
-                audio_set_hw_state_27();
+                audio_aphy_ctrl2_set_bit31();
                 REG_AUDIO_FSM_PENDING_B = 0;
             }
             REG_AUDIO_STATUS_LAT = 0;
         } else {
-            audio_set_hw_state_29();
+            audio_irq_ack_a_bit4();
             REG_AUDIO_STATUS_LAT = 3;
         }
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_h14r_commands(uint8_t *msg)
+int audio_h14_rx_cmd_handler(uint8_t *msg)
 {
     AUDIO_TASK_GUARD();
 
     if (msg[0] == 11 && msg[1] == 20) {
         uint8_t flags = msg[2];
         if ((flags & 0x80u) != 0u) {
-            audio_set_hw_state_24();
+            audio_aphy_ctrl2_pulse_bit1();
         } else {
             uint32_t discovery = (uint32_t)REG_AUDIO_DISCOVERY_FLAGS << 16;
             if ((flags & 0x40u) != 0u) {
                 REG_AUDIO_CAP_FLAGS |= 0x0Au;
                 REG_AUDIO_EXT_CTRL |= discovery | ((uint32_t)REG_AUDIO_CAP_FLAGS << 8);
                 if ((REG_AUDIO_APHY_STATUS & 2u) != 0u)
-                    audio_set_hw_state_27();
+                    audio_aphy_ctrl2_set_bit31();
                 else
                     REG_AUDIO_FSM_PENDING_B = 1;
             } else if ((flags & 0x10u) != 0u) {
-                audio_process_state_19();
+                audio_h14_aphy_configure_lanes();
             } else if ((flags & 0x20u) != 0u) {
                 REG_AUDIO_CAP_FLAGS |= 5u;
                 REG_AUDIO_EXT_CTRL |= discovery | ((uint32_t)REG_AUDIO_CAP_FLAGS << 8);
-                audio_process_state_18();
+                audio_h14_fsm_check_pending();
             }
         }
     }
@@ -1594,12 +1594,12 @@ int audio_handle_h14r_commands(uint8_t *msg)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_21(void) { return audio_process_state_21_log_string(); }
+int audio_log_current_task(void) { return audio_process_state_21_log_string(); }
 
-int audio_set_hw_state_22(void)
+int audio_aphy_spdif_init(void)
 {
     AUDIO_TASK_GUARD();
-    audio_set_hw_state_17();
+    audio_aphy_ctrl1_set_300();
     REG_AUDIO_APHY_CTRL2 |= 0x61u;
     REG_AUDIO_APHY_CTRL2 &= ~0x61u;
     REG_AUDIO_APHY_CTRL2 &= ~0x10u;
@@ -1609,15 +1609,15 @@ int audio_set_hw_state_22(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_23(void)
+int audio_h14_aphy_check_error(void)
 {
     AUDIO_TASK_GUARD();
     if ((REG_AUDIO_APHY_STATUS & 4u) != 0u)
-        audio_set_hw_state_27();
+        audio_aphy_ctrl2_set_bit31();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_24(void)
+int audio_aphy_ctrl2_pulse_bit1(void)
 {
     REG_AUDIO_APHY_CTRL2 |= 2u;
     REG_AUDIO_APHY_CTRL2 &= ~2u;
@@ -1626,7 +1626,7 @@ int audio_set_hw_state_24(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_set_hw_state_25(void)
+int audio_h14_fsm_clear_pending(void)
 {
     REG_AUDIO_FSM_PENDING_B = 0;
     REG_AUDIO_HW_EVENT_MASK &= ~0x02000000u;
@@ -1634,13 +1634,13 @@ int audio_set_hw_state_25(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_process_state_58(void);
+int audio_h23_cfg_state_reset_full(void);
 
-int audio_set_hw_state_26(void)
+int audio_h14_link_status_init(void)
 {
     AUDIO_TASK_GUARD();
-    audio_set_hw_state_25();
-    audio_process_state_58();
+    audio_h14_fsm_clear_pending();
+    audio_h23_cfg_state_reset_full();
     REG_AUDIO_LINK_FLAGS |= 0x10u;
     REG_AUDIO_LINK_FLAGS &= (uint8_t)~8u;
     REG_AUDIO_LINK_STATUS |= 2u;
@@ -1648,30 +1648,30 @@ int audio_set_hw_state_26(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_27(void)
+int audio_aphy_ctrl2_set_bit31(void)
 {
     REG_AUDIO_APHY_CTRL2 &= ~0x80000000u;
     REG_AUDIO_APHY_CTRL2 |= 0x80000000u;
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_process_state_28(void)
+int audio_h14_protocol_retry_check(void)
 {
     AUDIO_TASK_GUARD();
     int state = ((*(volatile uint32_t *)0x40101000 & 2u) != 0u)
               ? ((int)((*(volatile uint32_t *)0x40101000 << 22) >> 31) + 1)
               : 255;
-    if (video_check_state_40(state)) {
+    if (video_check_bist_status(state)) {
         REG_AUDIO_H14_EE_TIMER = 0;
         REG_AUDIO_PROTOCOL_STATE = 0;
-        audio_process_state_37();
+        audio_h14_protocol_state_machine_kick_zero();
     } else {
         REG_AUDIO_H14_RETRY_TIMER = 2;
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_29(void)
+int audio_irq_ack_a_bit4(void)
 {
     REG_AUDIO_STATUS_REG_C &= ~0x40000000u;
     REG_AUDIO_IRQ_ACK_B &= (uint8_t)~0x10u;
@@ -1679,7 +1679,7 @@ int audio_set_hw_state_29(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_set_hw_state_30(void)
+int audio_irq_ack_ab_bit4(void)
 {
     *(volatile uint8_t *)0x40101040 &= (uint8_t)~0x20u;
     REG_AUDIO_STATUS_REG_C |= 0x40000000u;
@@ -1688,13 +1688,13 @@ int audio_set_hw_state_30(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_handle_h14t_ee(void)
+int audio_h14_tx_ee_handler(void)
 {
     AUDIO_TASK_GUARD();
     write_debug_string_if_enabled("h14t ee\n");
 
-    if (audio_check_state_84()) {
-        video_enqueue_event(11, audio_get_state_92(), 128);
+    if (audio_protocol_check_status()) {
+        video_enqueue_event(11, audio_protocol_get_state_code(), 128);
         AUDIO_TASK_RETURN((int)saved_task);
     }
 
@@ -1720,15 +1720,15 @@ int audio_handle_h14t_ee(void)
     REG_AUDIO_H23_RD_CMD &= (uint8_t)~0x80u;
     REG_AUDIO_STATUS_REG &= 0xFFFF3FFFu;
     REG_AUDIO_IRQ_ACK_A = 32;
-    audio_process_state_28();
+    audio_h14_protocol_retry_check();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_31(void)
+int audio_h14_status_reg_set_c000(void)
 {
     AUDIO_TASK_GUARD();
-    audio_set_hw_state_38();
-    audio_set_hw_state_29();
+    audio_h14_clear_timers_and_protocol();
+    audio_irq_ack_a_bit4();
     delay_loop(20);
     REG_AUDIO_STATUS_REG |= 0xC000u;
     *(volatile uint8_t *)0x40101040 |= 0x20u;
@@ -1736,11 +1736,11 @@ int audio_process_state_31(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_h14t_commands(uint8_t *msg)
+int audio_h14_tx_cmd_handler(uint8_t *msg)
 {
     AUDIO_TASK_GUARD();
     if (msg[0] == 40 && REG_AUDIO_PROTOCOL_STATE == 5u)
-        video_state_machine_2();
+        video_fsm_poll_audio_and_h23();
 
     if ((REG_AUDIO_DEBUG_FLAGS & 2u) != 0u) {
         if (msg[0] == 72)
@@ -1751,17 +1751,17 @@ int audio_handle_h14t_commands(uint8_t *msg)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_check_state_32(void) { return ((REG_AUDIO_STATUS_REG >> 17) & 3u) == 3u; }
+BOOL audio_h14_status_reg_check_bit17_18(void) { return ((REG_AUDIO_STATUS_REG >> 17) & 3u) == 3u; }
 
-int audio_process_state_33(void)
+int audio_h14_protocol_state_machine_kick(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_PROTOCOL_STATE != 0u && REG_AUDIO_PROTOCOL_STATE != 5u)
-        video_state_machine_2();
+        video_fsm_poll_audio_and_h23();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_34(void)
+int audio_h14_status_reg_init(void)
 {
     REG_AUDIO_STATUS_REG_C |= 0x28000000u;
     REG_AUDIO_STATUS_REG_D |= 0x1E9u;
@@ -1771,18 +1771,18 @@ int audio_set_hw_state_34(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-BOOL audio_check_state_35(void) { return REG_AUDIO_PROTOCOL_STATE != 0u; }
-int audio_check_state_36(void) { return (REG_AUDIO_STATUS_REG_B >> 14) & 1u; }
+BOOL audio_h14_is_protocol_active(void) { return REG_AUDIO_PROTOCOL_STATE != 0u; }
+int audio_h14_status_reg_b_check_bit14(void) { return (REG_AUDIO_STATUS_REG_B >> 14) & 1u; }
 
-int audio_process_state_37(void)
+int audio_h14_protocol_state_machine_kick_zero(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_PROTOCOL_STATE == 0u)
-        video_state_machine_2();
+        video_fsm_poll_audio_and_h23();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_38(void)
+int audio_h14_clear_timers_and_protocol(void)
 {
     REG_AUDIO_IRQ_ACK_B &= 0xCFu;
     REG_AUDIO_H14_RETRY_TIMER = 0;
@@ -1791,16 +1791,16 @@ int audio_set_hw_state_38(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_timer_update_2(void)
+int audio_h14_update_timers(void)
 {
     AUDIO_TASK_GUARD();
 
     if (REG_AUDIO_H14_RETRY_TIMER != 0u && --REG_AUDIO_H14_RETRY_TIMER == 0u)
-        audio_process_state_28();
+        audio_h14_protocol_retry_check();
     if (REG_AUDIO_H14_EE_TIMER != 0u && --REG_AUDIO_H14_EE_TIMER == 0u)
-        scdc_handle_event_11_32();
+        scdc_handle_earc_32ch_event();
     if (REG_AUDIO_H14_RESTART_TIMER != 0u && --REG_AUDIO_H14_RESTART_TIMER == 0u)
-        video_state_machine_2();
+        video_fsm_poll_audio_and_h23();
 
     if (REG_AUDIO_DEBOUNCE_TIMER != 0u) {
         REG_AUDIO_DEBOUNCE_TIMER--;
@@ -1808,9 +1808,9 @@ int audio_timer_update_2(void)
             if ((REG_AUDIO_APHY_STATUS & 2u) != 0u &&
                 (((REG_AUDIO_I2C_INT_CTRL & 4u) != 0u) || REG_AUDIO_DDC_PENDING != 0u)) {
                 REG_AUDIO_I2C_INT_CTRL = 4;
-                audio_set_hw_state_29();
+                audio_irq_ack_a_bit4();
                 __disable_irq();
-                video_enqueue_event(11, audio_get_state_92(), 64);
+                video_enqueue_event(11, audio_protocol_get_state_code(), 64);
                 __enable_irq();
                 __disable_irq();
                 video_enqueue_event(72, 0, 0);
@@ -1825,56 +1825,56 @@ int audio_timer_update_2(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_39(int a1, int a2) { return audio_process_state_39_log_string(a1, a2); }
+int audio_log_current_task_args(int a1, int a2) { return audio_process_state_39_log_string(a1, a2); }
 
-BOOL audio_check_state_40(void)
+BOOL audio_h23_check_cfg_and_sample(void)
 {
     AUDIO_TASK_GUARD();
     uint32_t cfg = *(volatile uint32_t *)0x40040;
     BOOL ok = ((((cfg >> 22) & 3u) == 1u) || ((cfg & 0x00C00000u) == 0u))
-           && (audio_get_hw_state_5() == 1)
-           && ((audio_get_state_91() == 1) || !audio_check_state_74());
+           && (audio_get_cs_sample() == 1)
+           && ((audio_protocol_get_mode() == 1) || !audio_h23_check_pkt0_bit1());
     AUDIO_TASK_RETURN(ok);
 }
 
-int audio_get_state_41(void)
+int audio_h23_get_rdval0_bits0_2(void)
 {
     AUDIO_TASK_GUARD();
-    int result = audio_check_state_42() ? (REG_AUDIO_H23_RDVAL0 & 7u) : 0;
+    int result = audio_h23_check_readbuf_sel21() ? (REG_AUDIO_H23_RDVAL0 & 7u) : 0;
     AUDIO_TASK_RETURN(result);
 }
 
-int audio_check_state_42(void)
+int audio_h23_check_readbuf_sel21(void)
 {
     REG_AUDIO_READBUF_SEL = 21;
     return REG_AUDIO_READBUF_DATA & 1u;
 }
 
-int audio_get_state_43(void)
+int audio_h23_get_rdval0_bit3(void)
 {
     AUDIO_TASK_GUARD();
-    int result = audio_check_state_42() ? (REG_AUDIO_H23_RDVAL0 >> 3) : 0;
+    int result = audio_h23_check_readbuf_sel21() ? (REG_AUDIO_H23_RDVAL0 >> 3) : 0;
     AUDIO_TASK_RETURN(result);
 }
 
-int audio_get_state_44(void)
+int audio_h23_get_rdval1_bit3(void)
 {
     AUDIO_TASK_GUARD();
-    int result = audio_check_state_42() ? ((REG_AUDIO_H23_RDVAL1 >> 3) & 1u) : 0;
+    int result = audio_h23_check_readbuf_sel21() ? ((REG_AUDIO_H23_RDVAL1 >> 3) & 1u) : 0;
     AUDIO_TASK_RETURN(result);
 }
 
-int audio_get_state_45(void)
+int audio_h23_get_rdval1_bit2(void)
 {
     AUDIO_TASK_GUARD();
-    int result = audio_check_state_42() ? ((REG_AUDIO_H23_RDVAL1 >> 2) & 1u) : 0;
+    int result = audio_h23_check_readbuf_sel21() ? ((REG_AUDIO_H23_RDVAL1 >> 2) & 1u) : 0;
     AUDIO_TASK_RETURN(result);
 }
 
-int audio_set_hw_state_46(void)
+int audio_h23_fsm_init(void)
 {
     AUDIO_TASK_GUARD();
-    audio_process_state_59();
+    audio_h23_link_flags_init();
     REG_AUDIO_HW_EVENT_MASK |= 0x200u;
     REG_AUDIO_H23_BF_IA = 0;
     REG_AUDIO_H23_PATH_OK = 0;
@@ -1888,17 +1888,17 @@ int audio_set_hw_state_46(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_47(void)
+int audio_h23_fsm_set_state3(void)
 {
     AUDIO_TASK_GUARD();
-    audio_set_hw_state_65();
-    audio_set_hw_state_57();
+    audio_h23_link_flags_ab_clear_bit3();
+    audio_h23_link_flags_set_bit6();
     REG_AUDIO_HW_EVENT_MASK |= 0x20000u;
     REG_AUDIO_H23_CFG_STATE = 3;
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_48(void)
+int audio_h23_link_mode_init(void)
 {
     REG_AUDIO_H23_READY = 3;
     REG_AUDIO_LINK_MODE = 3;
@@ -1908,13 +1908,13 @@ int audio_set_hw_state_48(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_set_hw_state_49(void)
+int audio_h23_hw_event_mask_clear(void)
 {
     REG_AUDIO_HW_EVENT_MASK &= 0xFFFDCFFFu;
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_process_state_50(void)
+int audio_h23_cfg_state_clear(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_H23_CFG_STATE == 2u || REG_AUDIO_H23_CFG_STATE == 3u) {
@@ -1922,15 +1922,15 @@ int audio_process_state_50(void)
         REG_AUDIO_H23_PARAM1 &= (uint8_t)~1u;
         REG_AUDIO_H23_PARAM1 &= 0xF1u;
         REG_AUDIO_H23_PARAM0 &= 0xF3u;
-        if (hw_misc_check_state_3())
-            audio_set_hw_state_63();
-        audio_set_hw_state_49();
+        if (hw_misc_is_sink_count_1())
+            audio_h23_link_flags_b_set_bit3();
+        audio_h23_hw_event_mask_clear();
         REG_AUDIO_H23_CFG_STATE = 0;
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_51(void)
+int audio_h23_cfg_state_apply_lanes(void)
 {
     AUDIO_TASK_GUARD();
     bool invalid = false;
@@ -1941,8 +1941,8 @@ int audio_process_state_51(void)
         REG_AUDIO_H23_PARAM1 &= (uint8_t)~1u;
         REG_AUDIO_H23_PARAM1 &= 0xF1u;
 
-        uint32_t channels = (uint32_t)audio_get_state_89() + 1u;
-        uint32_t lanes = (uint32_t)audio_get_state_81() + 1u;
+        uint32_t channels = (uint32_t)audio_protocol_get_channels() + 1u;
+        uint32_t lanes = (uint32_t)audio_protocol_get_lanes() + 1u;
 
         if (channels > 0x1Fu) {
             REG_AUDIO_H23_PARAM0 |= 8u;
@@ -1954,44 +1954,44 @@ int audio_process_state_51(void)
         }
 
         if (invalid) {
-            audio_set_hw_state_63();
-            audio_set_hw_state_49();
+            audio_h23_link_flags_b_set_bit3();
+            audio_h23_hw_event_mask_clear();
             REG_AUDIO_H23_CFG_STATE = 0;
         } else {
             REG_AUDIO_H23_PARAM0 |= (uint8_t)(channels << 4);
             REG_AUDIO_H23_PARAM1 |= (uint8_t)((channels & 0x10u) != 0u);
             REG_AUDIO_H23_PARAM1 |= (uint8_t)(lanes << 1);
-            video_set_hw_state_75();
-            audio_set_hw_state_47();
+            video_update_h23_param0();
+            audio_h23_fsm_set_state3();
         }
     }
 
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_52(void)
+int audio_h23_aphy_check_status(void)
 {
     AUDIO_TASK_GUARD();
-    if (audio_get_state_92() == 34) {
-        if (video_get_state_81()) {
-            if (hw_misc_process_state_99())
-                audio_process_state_83();
+    if (audio_protocol_get_state_code() == 34) {
+        if (video_get_h23_work_pending()) {
+            if (hw_misc_check_reg_9b8_and_audio())
+                audio_protocol_clear_rd_flags();
             else
-                audio_process_state_82();
+                audio_protocol_set_rd_flags();
         }
 
         if ((REG_AUDIO_APHY_STATUS & 2u) != 0u) {
             REG_AUDIO_HW_EVENT_MASK |= 0x1000u;
             if (REG_AUDIO_H23_PENDING_ENABLE != 0u) {
-                if (hw_misc_check_state_3())
-                    audio_set_hw_state_63();
+                if (hw_misc_is_sink_count_1())
+                    audio_h23_link_flags_b_set_bit3();
                 REG_AUDIO_H23_PENDING_ENABLE = 0;
             }
-            REG_AUDIO_H23_PATH_OK = audio_check_state_40();
+            REG_AUDIO_H23_PATH_OK = audio_h23_check_cfg_and_sample();
             REG_AUDIO_STATUS_LAT = 0;
         } else {
-            if (audio_get_state_91() == 1 && audio_check_state_36())
-                audio_set_hw_state_29();
+            if (audio_protocol_get_mode() == 1 && audio_h14_status_reg_b_check_bit14())
+                audio_irq_ack_a_bit4();
             REG_AUDIO_STATUS_LAT = 3;
             REG_AUDIO_H23_PATH_OK = 0;
         }
@@ -2000,7 +2000,7 @@ int audio_process_state_52(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_h23r_commands(uint8_t *msg)
+int audio_h23_rx_cmd_handler(uint8_t *msg)
 {
     AUDIO_TASK_GUARD();
     uint8_t code = msg[0];
@@ -2009,19 +2009,19 @@ int audio_handle_h23r_commands(uint8_t *msg)
         if (msg[1] != 20) {
             if ((msg[2] & 0x88u) != 0u) {
                 REG_AUDIO_H23_BF_IA = 1;
-                audio_set_hw_state_57();
+                audio_h23_link_flags_set_bit6();
                 write_debug_string_if_enabled("h23r n bf ia\n");
             } else if ((msg[2] & 0x11u) != 0u) {
-                if (audio_get_state_85()) {
+                if (audio_protocol_get_status_bit()) {
                     if (REG_AUDIO_H23_REPLAY_PENDING != 0u) {
                         REG_AUDIO_H23_REPLAY_PENDING = 0;
-                        audio_process_state_51();
+                        audio_h23_cfg_state_apply_lanes();
                         write_debug_string_if_enabled("h23r n bf h23t ap rep\n");
                     } else {
                         write_debug_string_if_enabled("h23r nn bf sm\n");
                     }
                 } else {
-                    audio_process_state_51();
+                    audio_h23_cfg_state_apply_lanes();
                     write_debug_string_if_enabled("h23r n bf h23t ap sink\n");
                 }
             } else {
@@ -2030,7 +2030,7 @@ int audio_handle_h23r_commands(uint8_t *msg)
                     REG_AUDIO_CAP_FLAGS |= 0x0Au;
                     REG_AUDIO_EXT_CTRL |= discovery | ((uint32_t)REG_AUDIO_CAP_FLAGS << 8);
                     if ((REG_AUDIO_APHY_STATUS & 2u) != 0u)
-                        audio_set_hw_state_63();
+                        audio_h23_link_flags_b_set_bit3();
                     else
                         REG_AUDIO_H23_PENDING_ENABLE = 1;
                     REG_AUDIO_H23_PATH_OK = 0;
@@ -2041,17 +2041,17 @@ int audio_handle_h23r_commands(uint8_t *msg)
                 } else if ((msg[2] & 0x22u) != 0u) {
                     REG_AUDIO_CAP_FLAGS |= 5u;
                     REG_AUDIO_EXT_CTRL |= discovery | ((uint32_t)REG_AUDIO_CAP_FLAGS << 8);
-                    audio_process_state_50();
+                    audio_h23_cfg_state_clear();
                     write_debug_string_if_enabled("h23r n bf h23t af\n");
                 }
             }
         }
     } else if (code == 65) {
         custom_printf("h start machine\n");
-        audio_process_state_90();
-    } else if (code == 13 && !hw_misc_check_state_3()) {
-        audio_set_hw_state_64();
-        audio_set_hw_state_65();
+        audio_protocol_start_machine();
+    } else if (code == 13 && !hw_misc_is_sink_count_1()) {
+        audio_h23_link_flags_ab_clear_bit4();
+        audio_h23_link_flags_ab_clear_bit3();
         REG_AUDIO_H23_PENDING_ENABLE = 0;
     }
 
@@ -2070,36 +2070,36 @@ int audio_handle_h23r_commands(uint8_t *msg)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_53(int a1, int a2, int a3, char a4) { return audio_process_state_53_log_string(a1, a2, a3, a4); }
+int audio_log_current_task_args4(int a1, int a2, int a3, char a4) { return audio_process_state_53_log_string(a1, a2, a3, a4); }
 
-int audio_set_hw_state_54(void)
+int audio_h23_cfg_state_reset(void)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_HW_EVENT_MASK &= ~0x1000u;
     REG_AUDIO_H23_CFG_STATE = 0;
-    audio_set_hw_state_63();
+    audio_h23_link_flags_b_set_bit3();
     if ((REG_AUDIO_APHY_STATUS & 2u) != 0u)
-        audio_set_hw_state_62();
+        audio_h23_link_flags_b_set_bit4();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_55(void)
+int audio_h23_cfg_state_reset_alt(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_H23_CFG_STATE == 2u || REG_AUDIO_H23_CFG_STATE == 3u) {
         REG_AUDIO_HW_EVENT_MASK &= ~0x2000u;
         REG_AUDIO_H23_CFG_STATE = 0;
-        audio_set_hw_state_63();
+        audio_h23_link_flags_b_set_bit3();
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_56(void)
+int audio_h23_link_status_init(void)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_H23_PATH_OK = 0;
     REG_AUDIO_H23_CFG_STATE = 0;
-    audio_set_hw_state_48();
+    audio_h23_link_mode_init();
     REG_AUDIO_H23_HW_FLAG |= 1u;
     REG_AUDIO_H23_HW_FLAG_B &= (uint8_t)~0x80u;
     REG_AUDIO_H23_MISC0 = 7;
@@ -2119,24 +2119,24 @@ int audio_set_hw_state_56(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_57(void) { REG_AUDIO_LINK_FLAGS &= (uint8_t)~0x40u; REG_AUDIO_LINK_FLAGS |= 0x40u; return (int)REG_TCB_CURRENT_TASK; }
+int audio_h23_link_flags_set_bit6(void) { REG_AUDIO_LINK_FLAGS &= (uint8_t)~0x40u; REG_AUDIO_LINK_FLAGS |= 0x40u; return (int)REG_TCB_CURRENT_TASK; }
 
-int audio_process_state_58(void)
+int audio_h23_cfg_state_reset_full(void)
 {
     AUDIO_TASK_GUARD();
-    audio_set_hw_state_64();
-    audio_set_hw_state_65();
+    audio_h23_link_flags_ab_clear_bit4();
+    audio_h23_link_flags_ab_clear_bit3();
     REG_AUDIO_H23_PENDING_ENABLE = 0;
-    audio_set_hw_state_49();
+    audio_h23_hw_event_mask_clear();
     REG_AUDIO_H23_CFG_STATE = 0;
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_59(void)
+int audio_h23_link_flags_init(void)
 {
     AUDIO_TASK_GUARD();
-    audio_set_hw_state_25();
-    audio_process_state_58();
+    audio_h14_fsm_clear_pending();
+    audio_h23_cfg_state_reset_full();
     REG_AUDIO_LINK_FLAGS |= 0x10u;
     REG_AUDIO_LINK_FLAGS |= 8u;
     REG_AUDIO_LINK_STATUS &= (uint8_t)~2u;
@@ -2148,7 +2148,7 @@ int audio_process_state_59(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_60(void)
+int audio_h23_cfg_state_advance_to_2(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_H23_CFG_STATE == 1u) {
@@ -2161,41 +2161,41 @@ int audio_process_state_60(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_61(void)
+int audio_h23_cfg_state_advance_to_0(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_H23_CFG_STATE == 3u) {
-        uint8_t status = (uint8_t)audio_get_hw_state_5();
+        uint8_t status = (uint8_t)audio_get_cs_sample();
         REG_AUDIO_H23_STATUS_CACHE = status;
         if (status == REG_AUDIO_H23_STATUS_SHADOW ||
             ((REG_AUDIO_H23_STATUS_SHADOW = status), (REG_AUDIO_APHY_STATUS & 2u) == 0u)) {
-            if (audio_get_state_91() != 1 && audio_get_state_85() && REG_AUDIO_H23_BF_IA == 0u)
+            if (audio_protocol_get_mode() != 1 && audio_protocol_get_status_bit() && REG_AUDIO_H23_BF_IA == 0u)
                 video_enqueue_event(61, 0, 0);
             REG_AUDIO_HW_EVENT_MASK |= 0x10u;
         } else {
             REG_AUDIO_H23_CFG_STATE = 0;
-            audio_set_hw_state_63();
-            audio_set_hw_state_62();
+            audio_h23_link_flags_b_set_bit3();
+            audio_h23_link_flags_b_set_bit4();
         }
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_62(void) { REG_AUDIO_LINK_FLAGS_A &= (uint8_t)~0x10u; REG_AUDIO_LINK_FLAGS_B &= (uint8_t)~0x10u; REG_AUDIO_LINK_FLAGS_B |= 0x10u; return (int)REG_TCB_CURRENT_TASK; }
-int audio_set_hw_state_63(void) { REG_AUDIO_LINK_FLAGS_A &= (uint8_t)~8u; REG_AUDIO_LINK_FLAGS_B &= (uint8_t)~8u; REG_AUDIO_LINK_FLAGS_B |= 8u; return (int)REG_TCB_CURRENT_TASK; }
-int audio_set_hw_state_64(void) { REG_AUDIO_LINK_FLAGS_A &= (uint8_t)~0x10u; REG_AUDIO_LINK_FLAGS_B &= (uint8_t)~0x10u; return (int)REG_TCB_CURRENT_TASK; }
-int audio_set_hw_state_65(void) { REG_AUDIO_LINK_FLAGS_A &= (uint8_t)~8u; REG_AUDIO_LINK_FLAGS_B &= (uint8_t)~8u; return (int)REG_TCB_CURRENT_TASK; }
+int audio_h23_link_flags_b_set_bit4(void) { REG_AUDIO_LINK_FLAGS_A &= (uint8_t)~0x10u; REG_AUDIO_LINK_FLAGS_B &= (uint8_t)~0x10u; REG_AUDIO_LINK_FLAGS_B |= 0x10u; return (int)REG_TCB_CURRENT_TASK; }
+int audio_h23_link_flags_b_set_bit3(void) { REG_AUDIO_LINK_FLAGS_A &= (uint8_t)~8u; REG_AUDIO_LINK_FLAGS_B &= (uint8_t)~8u; REG_AUDIO_LINK_FLAGS_B |= 8u; return (int)REG_TCB_CURRENT_TASK; }
+int audio_h23_link_flags_ab_clear_bit4(void) { REG_AUDIO_LINK_FLAGS_A &= (uint8_t)~0x10u; REG_AUDIO_LINK_FLAGS_B &= (uint8_t)~0x10u; return (int)REG_TCB_CURRENT_TASK; }
+int audio_h23_link_flags_ab_clear_bit3(void) { REG_AUDIO_LINK_FLAGS_A &= (uint8_t)~8u; REG_AUDIO_LINK_FLAGS_B &= (uint8_t)~8u; return (int)REG_TCB_CURRENT_TASK; }
 
-int audio_process_state_66(void)
+int audio_h23_parse_discovery_pkt(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_H23_PKT2 == 57 && (REG_AUDIO_H23_PKT0 & 3u) == 2u) {
         REG_AUDIO_H23_RD_MODE &= (uint8_t)~0x40u;
-        hw_misc_set_state_63();
+        hw_misc_clear_reg_1996_bit2();
         REG_AUDIO_HW_EVENT_MASK_B &= 0xFFFFFDFBu;
         REG_AUDIO_H23_TIMEOUT = 0;
         video_enqueue_event(11, 0, 2);
-        video_set_state_112();
+        video_update_h23_rdval_from_197c();
         REG_AUDIO_H23_SUBSTATE = 7;
 
         if ((REG_AUDIO_H23_PKT5 & 2u) != 0u) REG_AUDIO_DISCOVERY_FLAGS |= 1u;
@@ -2223,28 +2223,28 @@ int audio_process_state_66(void)
             REG_AUDIO_CAP_FLAGS |= 0x10u;
         }
 
-        audio_process_state_73();
+        audio_h23_rd_cmd_set_bit0();
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_67(void)
+int audio_h23_substate_advance_to_6(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_H23_SUBSTATE == 4u && (REG_AUDIO_H23_PKT0 & 2u) != 0u) {
         REG_AUDIO_H23_RD_MODE &= (uint8_t)~0x40u;
-        hw_misc_set_state_63();
+        hw_misc_clear_reg_1996_bit2();
         REG_AUDIO_HW_EVENT_MASK_B &= ~2u;
         REG_AUDIO_HW_EVENT_MASK_B |= 0x600u;
         REG_AUDIO_H23_SUBSTATE = 6;
-        video_set_state_112();
+        video_update_h23_rdval_from_197c();
         REG_AUDIO_H23_STATE = 20;
         video_enqueue_event(11, 0, 1);
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_68(void)
+int audio_h23_substate_advance_to_5(void)
 {
     if (REG_AUDIO_H23_SUBSTATE == 3u || REG_AUDIO_H23_SUBSTATE == 6u) {
         REG_AUDIO_H23_REPLAY_PENDING = 1;
@@ -2255,21 +2255,21 @@ int audio_process_state_68(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_set_hw_state_69(void) { REG_AUDIO_H23_RD_FLAGS &= (uint8_t)~2u; return (int)REG_TCB_CURRENT_TASK; }
-int audio_set_hw_state_70(void) { REG_AUDIO_H23_RD_FLAGS |= 2u; return (int)REG_TCB_CURRENT_TASK; }
+int audio_h23_rd_flags_clear_bit1(void) { REG_AUDIO_H23_RD_FLAGS &= (uint8_t)~2u; return (int)REG_TCB_CURRENT_TASK; }
+int audio_h23_rd_flags_set_bit1(void) { REG_AUDIO_H23_RD_FLAGS |= 2u; return (int)REG_TCB_CURRENT_TASK; }
 
-int audio_process_state_71(void)
+int audio_h23_substate_advance_to_0(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_H23_SUBSTATE == 1u) {
         REG_AUDIO_HW_EVENT_MASK_B &= ~0x10u;
-        audio_process_state_73();
+        audio_h23_rd_cmd_set_bit0();
         REG_AUDIO_H23_SUBSTATE = 0;
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_72(void)
+int audio_h23_substate_advance_to_2(void)
 {
     if (REG_AUDIO_H23_SUBSTATE == 1u) {
         REG_AUDIO_HW_EVENT_MASK_B &= ~0x10u;
@@ -2280,19 +2280,19 @@ int audio_process_state_72(void)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_handle_h23t_ee(void)
+int audio_h23_tx_ee_handler(void)
 {
     AUDIO_TASK_GUARD();
     write_debug_string_if_enabled("h23t ee\n");
 
-    if (audio_check_state_84()) {
+    if (audio_protocol_check_status()) {
         write_debug_string_if_enabled("h23t is au\n");
         video_enqueue_event(11, 0, 8);
         AUDIO_TASK_RETURN((int)saved_task);
     }
 
     REG_AUDIO_H23_RD_CMD |= 0x80u;
-    audio_set_hw_state_79();
+    audio_h23_substate_reset();
 
     if ((REG_AUDIO_I2C_INT_CTRL & 4u) != 0u || REG_AUDIO_DDC_PENDING != 0u) {
         REG_AUDIO_I2C_INT_CTRL = 4;
@@ -2319,21 +2319,21 @@ int audio_handle_h23t_ee(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_73(void)
+int audio_h23_rd_cmd_set_bit0(void)
 {
     AUDIO_TASK_GUARD();
-    audio_set_hw_state_79();
+    audio_h23_substate_reset();
     REG_AUDIO_H23_RD_CMD |= 1u;
     REG_AUDIO_H23_RD_CTRL |= 7u;
     REG_AUDIO_STATUS_LAT = 0;
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_h23t_commands(uint8_t *msg)
+int audio_h23_tx_cmd_handler(uint8_t *msg)
 {
     AUDIO_TASK_GUARD();
     if (msg[0] == 61)
-        audio_handle_h23t_wr_str_man();
+        audio_h23_tx_write_str_manual();
 
     if ((REG_AUDIO_DEBUG_FLAGS & 2u) != 0u) {
         switch (msg[0]) {
@@ -2349,9 +2349,9 @@ int audio_handle_h23t_commands(uint8_t *msg)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_check_state_74(void) { return (REG_AUDIO_H23_PKT0 & 2u) != 0u; }
+BOOL audio_h23_check_pkt0_bit1(void) { return (REG_AUDIO_H23_PKT0 & 2u) != 0u; }
 
-int audio_set_hw_state_75(void)
+int audio_h23_fifo_image_load(void)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_H23_RD_CMD |= 1u;
@@ -2377,29 +2377,29 @@ int audio_set_hw_state_75(void)
     REG_AUDIO_H23_RD_CTRL &= 0x9Fu;
     REG_AUDIO_H23_RD_CTRL |= 0x10u;
     REG_AUDIO_H23_MANUAL_CTRL |= 1u;
-    video_set_state_35();
+    video_clear_h23_rdval_regs();
     REG_AUDIO_H23_STATE = 0;
     REG_AUDIO_H23_REPLAY_PENDING = 1;
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_check_state_76(void)
+BOOL audio_h23_is_substate_1_to_4(void)
 {
     return REG_AUDIO_H23_SUBSTATE == 1u || REG_AUDIO_H23_SUBSTATE == 2u ||
            REG_AUDIO_H23_SUBSTATE == 3u || REG_AUDIO_H23_SUBSTATE == 4u;
 }
 
-int audio_process_state_77(void)
+int audio_h23_substate_advance_to_3_or_4(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_H23_SUBSTATE == 2u) {
         REG_AUDIO_HW_EVENT_MASK_B &= ~8u;
-        if (audio_check_state_42()) {
+        if (audio_h23_check_readbuf_sel21()) {
             REG_AUDIO_HW_EVENT_MASK_B |= 0x200u;
             REG_AUDIO_H23_SUBSTATE = 3;
             REG_AUDIO_HW_EVENT_MASK_B |= 0x400u;
         } else {
-            hw_misc_set_state_63();
+            hw_misc_clear_reg_1996_bit2();
             REG_AUDIO_H23_SUBSTATE = 4;
             REG_AUDIO_HW_EVENT_MASK_B |= 2u;
         }
@@ -2407,14 +2407,14 @@ int audio_process_state_77(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_78(void)
+int audio_enqueue_video_event_11_4(void)
 {
     AUDIO_TASK_GUARD();
     video_enqueue_event(11, 0, 4);
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_hw_state_79(void)
+int audio_h23_substate_reset(void)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_HW_EVENT_MASK_B = 0xFFFFF8E1u;
@@ -2422,20 +2422,20 @@ int audio_set_hw_state_79(void)
     REG_AUDIO_H23_UNUSED = 0;
     REG_AUDIO_H23_TIMEOUT = 0;
     REG_AUDIO_H23_SUBSTATE = 0;
-    video_set_state_35();
+    video_clear_h23_rdval_regs();
     REG_AUDIO_H23_STATE = 0;
     REG_AUDIO_H23_REPLAY_PENDING = 1;
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_timer_update_3(void)
+int audio_h23_update_timers(void)
 {
     AUDIO_TASK_GUARD();
 
     if (REG_AUDIO_H23_WORK_PENDING != 0u)
-        video_process_state_44();
+        video_h23_rd_mode_fsm_tick();
     if (REG_AUDIO_H23_TIMEOUT != 0u && --REG_AUDIO_H23_TIMEOUT == 0u)
-        audio_process_state_71();
+        audio_h23_substate_advance_to_0();
     if (REG_AUDIO_H23_STATE != 0u) {
         REG_AUDIO_H23_STATE--;
         if (REG_AUDIO_H23_STATE == 0u) {
@@ -2455,129 +2455,129 @@ int audio_timer_update_3(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_handle_h23t_wr_str_man(void)
+int audio_h23_tx_write_str_manual(void)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_H23_RD_MODE |= 0x40u;
-    audio_set_hw_state_2((char)audio_get_hw_state_5());
+    audio_write_h23_manual_data((char)audio_get_cs_sample());
     REG_AUDIO_H23_SUBSTATE = 4;
     REG_AUDIO_HW_EVENT_MASK_B |= 2u;
     write_debug_string_if_enabled("h23t wr str man\n");
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_check_state_80(void)
+BOOL audio_protocol_check_active(void)
 {
     AUDIO_TASK_GUARD();
-    BOOL ok = (audio_get_hw_state_5() == 1) &&
-              ((audio_get_state_91() == 1) || !audio_check_state_74());
+    BOOL ok = (audio_get_cs_sample() == 1) &&
+              ((audio_protocol_get_mode() == 1) || !audio_h23_check_pkt0_bit1());
     AUDIO_TASK_RETURN(ok);
 }
 
-int audio_get_state_81(void)
+int audio_protocol_get_lanes(void)
 {
     AUDIO_TASK_GUARD();
     int result;
     if (REG_AUDIO_PROTOCOL_MODE == 1u)
-        result = audio_get_hw_state_13();
+        result = audio_get_status_reg_bits8_10();
     else if (REG_AUDIO_PROTOCOL_MODE == 2u)
-        result = audio_get_state_41();
+        result = audio_h23_get_rdval0_bits0_2();
     else
         result = 0;
     AUDIO_TASK_RETURN(result);
 }
 
-int audio_process_state_82(void)
+int audio_protocol_set_rd_flags(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_PROTOCOL_MODE == 1u)
-        audio_set_hw_state_29();
+        audio_irq_ack_a_bit4();
     else if (REG_AUDIO_PROTOCOL_MODE == 2u)
-        audio_set_hw_state_70();
+        audio_h23_rd_flags_set_bit1();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_83(void)
+int audio_protocol_clear_rd_flags(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_PROTOCOL_MODE == 1u)
-        audio_set_hw_state_30();
+        audio_irq_ack_ab_bit4();
     else if (REG_AUDIO_PROTOCOL_MODE == 2u)
-        audio_set_hw_state_69();
+        audio_h23_rd_flags_clear_bit1();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_check_state_84(void)
+BOOL audio_protocol_check_status(void)
 {
     AUDIO_TASK_GUARD();
-    BOOL ok = (REG_AUDIO_PROTOCOL_MODE == 1u) ? audio_check_state_32()
-             : (REG_AUDIO_PROTOCOL_MODE == 2u) ? audio_check_state_74() : false;
+    BOOL ok = (REG_AUDIO_PROTOCOL_MODE == 1u) ? audio_h14_status_reg_check_bit17_18()
+             : (REG_AUDIO_PROTOCOL_MODE == 2u) ? audio_h23_check_pkt0_bit1() : false;
     AUDIO_TASK_RETURN(ok);
 }
 
-int audio_get_state_85(void)
+int audio_protocol_get_status_bit(void)
 {
     AUDIO_TASK_GUARD();
     int result;
     if (REG_AUDIO_PROTOCOL_MODE == 1u)
-        result = audio_get_hw_state_14();
+        result = audio_get_status_reg_bit29();
     else if (REG_AUDIO_PROTOCOL_MODE == 2u)
-        result = audio_check_state_42();
+        result = audio_h23_check_readbuf_sel21();
     else
         result = 0;
     AUDIO_TASK_RETURN(result);
 }
 
-int audio_process_state_86(void)
+int audio_protocol_dispatch_ee(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_PROTOCOL_MODE == 1u)
-        audio_handle_h14t_ee();
+        audio_h14_tx_ee_handler();
     else if (REG_AUDIO_PROTOCOL_MODE == 2u)
-        audio_handle_h23t_ee();
+        audio_h23_tx_ee_handler();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_87(void)
+int audio_protocol_dispatch_rd_cmd(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_PROTOCOL_MODE == 1u)
-        audio_process_state_31();
+        audio_h14_status_reg_set_c000();
     else if (REG_AUDIO_PROTOCOL_MODE == 2u)
-        audio_process_state_73();
+        audio_h23_rd_cmd_set_bit0();
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_check_state_88(void)
+BOOL audio_protocol_is_active(void)
 {
     AUDIO_TASK_GUARD();
-    BOOL ok = (REG_AUDIO_PROTOCOL_MODE == 1u) ? audio_check_state_35()
-             : (REG_AUDIO_PROTOCOL_MODE == 2u) ? audio_check_state_76() : false;
+    BOOL ok = (REG_AUDIO_PROTOCOL_MODE == 1u) ? audio_h14_is_protocol_active()
+             : (REG_AUDIO_PROTOCOL_MODE == 2u) ? audio_h23_is_substate_1_to_4() : false;
     AUDIO_TASK_RETURN(ok);
 }
 
-int audio_get_state_89(void)
+int audio_protocol_get_channels(void)
 {
     AUDIO_TASK_GUARD();
     int result;
     if (REG_AUDIO_PROTOCOL_MODE == 1u)
-        result = audio_get_hw_state_15();
+        result = audio_get_status_reg_bits0_6();
     else if (REG_AUDIO_PROTOCOL_MODE == 2u)
-        result = audio_get_state_43();
+        result = audio_h23_get_rdval0_bit3();
     else
         result = 0;
     AUDIO_TASK_RETURN(result);
 }
 
-int audio_process_state_90(void)
+int audio_protocol_start_machine(void)
 {
     AUDIO_TASK_GUARD();
-    if (!audio_check_state_88()) {
+    if (!audio_protocol_is_active()) {
         __disable_irq();
-        if (video_get_state_81()) {
+        if (video_get_h23_work_pending()) {
             REG_AUDIO_EE_PENDING = 0;
             __enable_irq();
-            audio_process_state_86();
+            audio_protocol_dispatch_ee();
         } else {
             REG_AUDIO_EE_PENDING = 1;
             __enable_irq();
@@ -2586,10 +2586,10 @@ int audio_process_state_90(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_get_state_91(void) { return REG_AUDIO_PROTOCOL_MODE; }
-int audio_get_state_92(void) { return REG_AUDIO_STATE_CODE; }
+int audio_protocol_get_mode(void) { return REG_AUDIO_PROTOCOL_MODE; }
+int audio_protocol_get_state_code(void) { return REG_AUDIO_STATE_CODE; }
 
-int audio_process_state_93(uint16_t *req)
+int audio_scdc_cfg2_retry_handler(uint16_t *req)
 {
     AUDIO_TASK_GUARD();
     if (req != NULL) {
@@ -2598,9 +2598,9 @@ int audio_process_state_93(uint16_t *req)
             if (data[0] != 0u || REG_AUDIO_CFG2_RETRIES == 0u) {
                 REG_AUDIO_CFG2_RETRIES = 0;
                 if (data[0] != 4u || (REG_AUDIO_EXT_CTRL & 2u) != 0u)
-                    audio_set_state_96(0);
+                    audio_protocol_set_mode(0);
                 else
-                    audio_set_state_96(1);
+                    audio_protocol_set_mode(1);
             } else {
                 REG_AUDIO_CFG2_RETRIES--;
                 scdc_write_config_2();
@@ -2610,19 +2610,19 @@ int audio_process_state_93(uint16_t *req)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_94(void)
+int audio_scdc_cfg2_decrement_retry(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_CFG2_RETRIES != 0u) {
         REG_AUDIO_CFG2_RETRIES--;
         scdc_write_config_2();
     } else {
-        audio_set_state_96(0);
+        audio_protocol_set_mode(0);
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_95(void)
+int audio_scdc_cfg2_dispatch_pending(void)
 {
     AUDIO_TASK_GUARD();
     int handled;
@@ -2636,7 +2636,7 @@ int audio_process_state_95(void)
     AUDIO_TASK_RETURN(handled);
 }
 
-int audio_timer_update_4(void)
+int audio_protocol_update_timer(void)
 {
     AUDIO_TASK_GUARD();
     if (REG_AUDIO_PROTOCOL_TIMER != 0u) {
@@ -2647,7 +2647,7 @@ int audio_timer_update_4(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_set_state_96(int h23)
+int audio_protocol_set_mode(int h23)
 {
     AUDIO_TASK_GUARD();
     REG_AUDIO_PROTOCOL_MODE = (h23 != 0) ? 2u : 1u;
@@ -2655,7 +2655,7 @@ int audio_set_state_96(int h23)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_init_state_97(void)
+int audio_protocol_init_timeouts(void)
 {
     AUDIO_TASK_GUARD();
     bzero_align((uint32_t *)0x41BD8, 0xEu);
@@ -2667,7 +2667,7 @@ int audio_init_state_97(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_98(int a1, int a2)
+int audio_calc_flags_set(int a1, int a2)
 {
     AUDIO_TASK_GUARD();
     uint8_t flags = (a1 != 0) ? 1u : 0u;
@@ -2676,19 +2676,19 @@ int audio_process_state_98(int a1, int a2)
     if (REG_AUDIO_PROTOCOL_CB_ENABLE != 0u) {
         REG_AUDIO_CALC_FLAGS = flags;
         __disable_irq();
-        audio_process_state_100();
+        audio_calc_request_info_read();
         __enable_irq();
     }
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-int audio_process_state_99(void)
+int audio_calc_dispatch_pending_read(void)
 {
     AUDIO_TASK_GUARD();
     int handled;
     if (REG_AUDIO_CALC_READ_PENDING != 0u) {
         REG_AUDIO_CALC_READ_PENDING = 0;
-        audio_process_state_100();
+        audio_calc_request_info_read();
         handled = 1;
     } else {
         handled = 0;
@@ -2696,7 +2696,7 @@ int audio_process_state_99(void)
     AUDIO_TASK_RETURN(handled);
 }
 
-int audio_process_state_100(void)
+int audio_calc_request_info_read(void)
 {
     AUDIO_TASK_GUARD();
     if (ddc_read_request(0xA8, 32, REG_AUDIO_INFO_READ_REQ) == 255)
@@ -2704,16 +2704,16 @@ int audio_process_state_100(void)
     AUDIO_TASK_RETURN((int)saved_task);
 }
 
-BOOL audio_check_state_101(void)
+BOOL audio_calc_check_result_valid(void)
 {
     AUDIO_TASK_GUARD();
-    BOOL ok = (!video_check_hw_state_126() && (REG_AUDIO_CALC_RESULT > 1135214592u ||
+    BOOL ok = (!video_check_mode_flags_bit10() && (REG_AUDIO_CALC_RESULT > 1135214592u ||
                (REG_AUDIO_PROTOCOL_CB_ENABLE != 0u && *(volatile uint8_t *)0x41BE5 != 0u))) ||
-              (video_check_hw_state_126() && video_check_hw_state_127());
+              (video_check_mode_flags_bit10() && video_check_mode_flags_bit11());
     AUDIO_TASK_RETURN(ok);
 }
 
-int audio_set_hw_state_102(int enable_rx, int enable_flag)
+int audio_calc_set_rx_flags(int enable_rx, int enable_flag)
 {
     uint32_t reg = *(volatile uint32_t *)0x40101000 & 0xFFFFEFF7u;
     uint32_t reg2;
@@ -2740,13 +2740,13 @@ int audio_set_hw_state_102(int enable_rx, int enable_flag)
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_set_state_103(int value)
+int audio_calc_set_result(int value)
 {
     REG_AUDIO_CALC_RESULT = (uint32_t)value;
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int audio_process_state_104(void)
+int audio_scdc_cfg3_cfg4_dispatch_pending(void)
 {
     AUDIO_TASK_GUARD();
     int handled;
@@ -2764,7 +2764,7 @@ int audio_process_state_104(void)
     AUDIO_TASK_RETURN(handled);
 }
 
-int audio_state_machine_1(void)
+int audio_frl_fsm_tick(void)
 {
     AUDIO_TASK_GUARD();
 
@@ -2774,17 +2774,17 @@ int audio_state_machine_1(void)
             advanced = false;
             switch (REG_AUDIO_FSM_STATE_FRL) {
             case 2:
-                frl_rate_set_2();
+                frl_rate_set_scdc_state5_7();
                 advanced = true;
                 break;
             case 3:
-                advanced = frl_process_state_2() != 0;
+                advanced = frl_fsm_advance_to_state4() != 0;
                 break;
             case 4:
-                scdc_state_transition_5();
+                scdc_fsm_enter_active_state();
                 break;
             case 5:
-                if (frl_check_state_1()) {
+                if (frl_check_pll_lock()) {
                     REG_AUDIO_FSM_STATE_FRL = 6;
                     advanced = true;
                 }
@@ -2794,20 +2794,20 @@ int audio_state_machine_1(void)
                 advanced = true;
                 break;
             case 7:
-                if (frl_check_state_3()) {
-                    video_check_state_41();
+                if (frl_check_pattern_lock()) {
+                    video_is_debug_flag_bit4_set();
                     if (REG_AUDIO_FRL_RETRY_FLAG != 0u)
                         REG_AUDIO_FSM_STATE_FRL = 8;
                     else
-                        frl_rate_set_0();
+                        frl_rate_set_scdc_state1();
                 }
                 break;
             case 8:
                 if (REG_AUDIO_FRL_RETRY_FLAG == 0u)
-                    frl_rate_set_0();
+                    frl_rate_set_scdc_state1();
                 break;
             case 9:
-                advanced = frl_process_state_4() != 0;
+                advanced = frl_fsm_advance_to_state10() != 0;
                 break;
             default:
                 break;

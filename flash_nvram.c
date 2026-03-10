@@ -10,7 +10,7 @@
  *
  * Flash hardware registers live in the peripheral block at 0x40102000+.
  *
- * The firmware update path (flash_efface_firmware_update) checks whether a
+ * The firmware update path (flash_apply_pending_update) checks whether a
  * valid "update pending" flag has been written to NVRAM; if so it erases the
  * primary firmware partition and copies the update image over it, verifying
  * the IMG4/IM4M signature before committing.
@@ -96,9 +96,9 @@ uint32_t *bzero(uint32_t *dst, uint32_t size);
 /* hw_misc.c */
 int hw_misc_set_state_8(int state);
 int hw_misc_process_state_40(int arg);
-int hw_misc_init_state_4(void);
+int flash_hw_init_and_nvram_tail(void);
 int hw_misc_process_state_53(void);
-int hw_misc_set_state_56(void);
+int hw_misc_scdc_phy_ctrl_init(void);
 
 /* crypto_hdcp.c */
 int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
@@ -112,14 +112,14 @@ static int  flash_issue_command(int cmd, int addr);
 static bool flash_wait_ready_timeout(int addr, uint32_t timeout_mask);
 
 /* i2c_scdc.c */
-bool scdc_read_multiple_configs(int channel);
-int  scdc_update_feature_flags(void);
-int  scdc_verify_config(uint32_t cfg, int a2, int a3);
+bool scdc_verify_nvram_sentinels(int channel);
+int  scdc_load_nvram_feature_flags(void);
+int  scdc_verify_fw_config_block(uint32_t cfg, int a2, int a3);
 
 /* hdmi_frl_video.c */
-int video_check_state_38(void);
+int video_is_debug_flag_bit5_set(void);
 int video_calculate_checksum(int addr);
-int video_copy_to_hw_buffer(int addr, uint32_t len);
+int video_copy_to_h23_fifo(int addr, uint32_t len);
 
 /* libc_printf.c */
 int custom_printf(const char *fmt, ...);
@@ -147,7 +147,7 @@ int flash_execute_hw_cmd(int cmd, int addr)
 
 /*
  * flash_hw_init_cmd — initialise the flash controller hardware.
- * Called once during hw_misc_init_state_4().
+ * Called once during flash_hw_init_and_nvram_tail().
  */
 int flash_hw_init_cmd(void)
 {
@@ -530,13 +530,13 @@ int flash_process_getbootnonce(int a1, int a2)
  * Commands arrive as structured packets; the state machine handles them.
  * ====================================================================== */
 
-int flash_set_state_16(int a1, int a2)
+int flash_cmd_nop_16(int a1, int a2)
 {
     (void)a1; (void)a2;
     return 0;
 }
 
-int flash_set_state_by_cmd(int cmd, int arg)
+int flash_dispatch_hw_cmd(int cmd, int arg)
 {
     switch (cmd) {
         case 0: return flash_hw_init_cmd();
@@ -545,43 +545,43 @@ int flash_set_state_by_cmd(int cmd, int arg)
     }
 }
 
-int flash_clear_state(int a1, int a2)
+int flash_erase_nvram_sram_cache(int a1, int a2)
 {
     (void)a1; (void)a2;
     bzero((uint32_t *)FLASH_NVRAM_BASE, FLASH_NVRAM_SIZE);
     return 0;
 }
 
-int flash_read_specific_cmd(int cmd, int addr)
+int flash_exec_read_cmd(int cmd, int addr)
 {
     return flash_execute_hw_cmd(cmd, addr);
 }
 
-int flash_process_sub_cmd(int a1, int a2)
+int flash_cmd_nop_sub(int a1, int a2)
 {
     (void)a1; (void)a2;
     return 0;
 }
 
-int flash_process_cmd_296(int a1, int a2)
+int flash_cmd_nop_296(int a1, int a2)
 {
     (void)a1; (void)a2;
     return 0;
 }
 
-int flash_process_cmd_662(uint8_t *buf, int len)
+int flash_write_update_image_chunk(uint8_t *buf, int len)
 {
     return flash_write_data(FLASH_UPDATE_ADDR, (uint32_t)len, buf, 0);
 }
 
-int flash_process_cmd_state(int cmd, int arg, int flags)
+int flash_dispatch_cmd_state(int cmd, int arg, int flags)
 {
     (void)flags;
-    return flash_set_state_by_cmd(cmd, arg);
+    return flash_dispatch_hw_cmd(cmd, arg);
 }
 
 /* =========================================================================
- * flash_efface_firmware_update — apply a pending firmware update (if any)
+ * flash_apply_pending_update — apply a pending firmware update (if any)
  *
  * This is called from main() before HDCP initialisation.  It checks NVRAM
  * for an "update pending" marker; if found, it:
@@ -593,7 +593,7 @@ int flash_process_cmd_state(int cmd, int arg, int flags)
  *
  * If no update is pending, returns the existing primary image address.
  * ====================================================================== */
-int flash_efface_firmware_update(int flags)
+int flash_apply_pending_update(int flags)
 {
     (void)flags;
 
@@ -760,27 +760,27 @@ int nvram_read_redundant(int key, uint32_t *value_out)
  * These functions bridge SCDC configuration to NVRAM storage.
  * ====================================================================== */
 
-bool scdc_read_multiple_configs(int channel)
+bool scdc_verify_nvram_sentinels(int channel)
 {
     (void)channel;
     return false;   /* stub: real implementation reads from NVRAM */
 }
 
-int scdc_update_feature_flags(void)
+int scdc_load_nvram_feature_flags(void)
 {
     return 0;
 }
 
-int scdc_verify_config(uint32_t cfg, int a2, int a3)
+int scdc_verify_fw_config_block(uint32_t cfg, int a2, int a3)
 {
     (void)a2; (void)a3;
     return cfg ? 0 : -1;
 }
 
 /* =========================================================================
- * hw_misc_init_state_4 — initialise the flash controller peripheral
+ * flash_hw_init_and_nvram_tail — initialise the flash controller peripheral
  * ====================================================================== */
-int hw_misc_init_state_4(void)
+int flash_hw_init_and_nvram_tail(void)
 {
     flash_hw_init_cmd();
     NVRAM_TAIL_PTR = FLASH_NVRAM_BASE;

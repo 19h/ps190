@@ -59,7 +59,7 @@
  * 0x40470  scdc_cfg3_req     — DDC request struct for config-3 write
  * 0x40480  scdc_cfg4_req     — DDC request struct for config-4 write
  * 0x41BEC  scdc_timeout_cb   — callback: link-loss / timeout handler
- * 0x41BE8  scdc_lane_cfg_a   — lane config byte A (for hw_misc_set_state_53)
+ * 0x41BE8  scdc_lane_cfg_a   — lane config byte A (for hw_misc_scdc_apply_lane_config)
  * 0x41BE9  scdc_lane_cfg_b   — lane config byte B
  * 0x41BF0  scdc_hpd_cb       — callback: HPD / link-down notification
  * 0x41BF5  scdc_frl_rate     — current FRL bit-rate code (3/6/8/10/12)
@@ -243,50 +243,50 @@
 /* -------------------------------------------------------------------------
  * Internal forward declarations (functions defined later in this file)
  * ---------------------------------------------------------------------- */
-int scdc_timer_update_83(int a1, int a2, int a3);
-int scdc_timer_update_cc(int a1, int a2, int a3);
-int scdc_state_transition_4_to_5(void);
+int scdc_update_status_poll_timer(int a1, int a2, int a3);
+int scdc_update_frl_stable_timer(int a1, int a2, int a3);
+int scdc_fsm_wait_ps_to_active(void);
 
 /* -------------------------------------------------------------------------
  * Cross-module forward declarations
  * ---------------------------------------------------------------------- */
 /* hw_misc.c */
-int  hw_misc_process_state_61(void);
-void hw_misc_set_state_51(void);
-int  hw_misc_set_state_53(uint8_t lane_a, uint8_t lane_b);
-int  hw_misc_set_state_54(int enable);
-void hw_misc_set_state_56(void);
-void hw_misc_set_state_61(void);
-int  hw_misc_set_state_65(uint8_t val);
-int  hw_misc_set_state_66(uint8_t val);
-int  hw_misc_get_state_12(void);
-int  hw_misc_process_state_96(void);
+int  hw_misc_clear_reg_492_and_irq_b(void);
+void hw_misc_scdc_set_state3_timeout(void);
+int  hw_misc_scdc_apply_lane_config(uint8_t lane_a, uint8_t lane_b);
+int  hw_misc_set_reg_254(int enable);
+void hw_misc_scdc_phy_ctrl_init(void);
+void hw_misc_irq_enable_mask_b_clear(void);
+int  hw_misc_set_reg_398(uint8_t val);
+int  hw_misc_set_reg_39d(uint8_t val);
+int  hw_misc_get_reg_39d(void);
+int  hw_misc_frl_link_loss_recovery(void);
 
 /* audio_earc.c */
-int  audio_handle_event_99(int a1, int a2, int a3);
-int  audio_process_pending_tasks(void);
-int  audio_process_state_31(void);
-int  audio_process_state_87(void);
-int  audio_get_state_92(void);
+int  audio_handle_frl_training_result(int a1, int a2, int a3);
+int  audio_dispatch_pending_scdc_tasks(void);
+int  audio_h14_status_reg_set_c000(void);
+int  audio_protocol_dispatch_rd_cmd(void);
+int  audio_protocol_get_state_code(void);
 
 /* hdmi_frl_video.c */
-int  frl_check_state_8(void);
-int  frl_process_state_9(void);
-int  frl_set_hw_state_13(void);
-int  video_set_hw_state_7(int enable);
-int  video_check_state_41(void);
+int  frl_is_state_8_or_higher(void);
+int  frl_fsm_advance_to_state9(void);
+int  frl_set_tx_force_bit(void);
+int  video_main_ctrl_set_bit4(int enable);
+int  video_is_debug_flag_bit4_set(void);
 int  video_enqueue_event(int event, int arg0, int arg1);
-int  video_set_hw_state_63(int rate, int enable);
-int  video_set_hw_state_109(int enable);
-int  video_process_state_113(int mode, int enable);
-int  video_set_hw_state_114(void);
-int  video_process_state_120(void);
-unsigned int video_timer_update_122(uint8_t *ts, int a2, int a3);
-int  video_get_state_125(int addr, int enable);
-int  video_set_hw_state_152(int enable);
-int  video_set_hw_state_153(int enable);
-int  video_set_hw_state_154(int enable);
-int  video_set_hw_state_173(void);
+int  video_frl_rate_regs_apply(int rate, int enable);
+int  video_set_path_ctrl_bit27(int enable);
+int  video_handle_fatal_error_overlay(int mode, int enable);
+int  video_update_reg_335_353(void);
+int  video_update_reg_335_353_wrapper(void);
+unsigned int video_calc_elapsed_ticks(uint8_t *ts, int a2, int a3);
+int  video_snapshot_event_time(int addr, int enable);
+int  video_main_ctrl_set_bit0(int enable);
+int  video_reg_f38_set_bit15(int enable);
+int  video_main_ctrl_set_bit4_cond(int enable);
+int  video_main_ctrl_set_0a_and_clear(void);
 
 /* flash_nvram.c */
 int  flash_read_data(int addr, unsigned int len, void *buf, int flags);
@@ -660,7 +660,7 @@ int ddc_transfer_complete_callback(void)
         /* If callback did not enqueue a new transfer, notify subsystems */
         if (!DDC_REQ_PTR) {
             DDC_DIRECTION = 0;
-            audio_process_pending_tasks();
+            audio_dispatch_pending_scdc_tasks();
         }
         /* Notify video subsystem that DDC channel is free */
         video_enqueue_event(105, 0, 0);
@@ -696,7 +696,7 @@ int ddc_transfer_abort_callback(void)
 
         if (!DDC_REQ_PTR) {
             DDC_DIRECTION = 0;
-            audio_process_pending_tasks();
+            audio_dispatch_pending_scdc_tasks();
         }
         /* Note: no video event on abort — caller must handle error */
     }
@@ -866,12 +866,12 @@ int scdc_write_config_4(void)
 }
 
 /*
- * scdc_set_timer_26d — set the HPD debounce timer to 20 ticks
+ * scdc_set_hpd_debounce_timer — set the HPD debounce timer to 20 ticks
  *
  * This timer governs how long the firmware waits after an HPD event before
  * initiating SCDC / FRL link training.
  */
-int scdc_set_timer_26d(void)
+int scdc_set_hpd_debounce_timer(void)
 {
     REG_HPD_DEBOUNCE_26D = 20;
     return (int)REG_TCB_CURRENT_TASK;
@@ -1012,12 +1012,12 @@ int scdc_is_state_8(void)
  * ========================================================================= */
 
 /*
- * scdc_enable_feature_1 — switch SCDC to FRL mode (disable legacy TMDS)
+ * scdc_enable_frl_mode — switch SCDC to FRL mode (disable legacy TMDS)
  *
  * Clears the TMDS-enable bit and sets the FRL-enable bit in SCDC_MODE_CTRL.
  * bit9 = TMDS mode, bit8 = FRL mode.
  */
-int scdc_enable_feature_1(void)
+int scdc_enable_frl_mode(void)
 {
     SCDC_MODE_CTRL &= ~0x200u;  /* clear TMDS mode */
     SCDC_MODE_CTRL |=  0x100u;  /* set FRL mode */
@@ -1025,9 +1025,9 @@ int scdc_enable_feature_1(void)
 }
 
 /*
- * scdc_enable_feature_2 — switch SCDC to TMDS mode (disable FRL)
+ * scdc_enable_tmds_mode — switch SCDC to TMDS mode (disable FRL)
  */
-int scdc_enable_feature_2(void)
+int scdc_enable_tmds_mode(void)
 {
     SCDC_MODE_CTRL &= ~0x100u;  /* clear FRL mode */
     SCDC_MODE_CTRL |=  0x200u;  /* set TMDS mode */
@@ -1049,9 +1049,9 @@ int scdc_periodic_task(void)
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     scdc_print_ps();
-    scdc_timer_update_83(0, 0, 0);
-    scdc_timer_update_cc(0, 0, 0);
-    scdc_state_transition_4_to_5();
+    scdc_update_status_poll_timer(0, 0, 0);
+    scdc_update_frl_stable_timer(0, 0, 0);
+    scdc_fsm_wait_ps_to_active();
 
     if (REG_TCB_CURRENT_TASK != saved)
         system_halt_clear_flag();
@@ -1059,20 +1059,20 @@ int scdc_periodic_task(void)
 }
 
 /*
- * scdc_timer_update_83 — decrement SCDC status-read interval timer
+ * scdc_update_status_poll_timer — decrement SCDC status-read interval timer
  *
  * SCDC_TIMER_83 counts down in units of elapsed time returned by
- * video_timer_update_122 (uses a timestamp at 0x404E0).  When it reaches
+ * video_calc_elapsed_ticks (uses a timestamp at 0x404E0).  When it reaches
  * zero, event 83 (SCDC_STATUS_POLL) is enqueued to the video event queue.
  *
  * Event 83 → triggers scdc_read_status_flags() to poll link status.
  */
-int scdc_timer_update_83(int a1, int a2, int a3)
+int scdc_update_status_poll_timer(int a1, int a2, int a3)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     if (SCDC_TIMER_83) {
-        uint32_t elapsed = video_timer_update_122((uint8_t *)0x404E0, a2, a3);
+        uint32_t elapsed = video_calc_elapsed_ticks((uint8_t *)0x404E0, a2, a3);
         if (SCDC_TIMER_83 <= elapsed)
             SCDC_TIMER_83 = 0;
         else
@@ -1091,7 +1091,7 @@ int scdc_timer_update_83(int a1, int a2, int a3)
 }
 
 /*
- * scdc_timer_update_cc — decrement FRL-stable countdown (event 82)
+ * scdc_update_frl_stable_timer — decrement FRL-stable countdown (event 82)
  *
  * When SCDC_TIMER_CC reaches zero, enqueues event 82 (FRL_TIMEOUT) and
  * invokes the link-loss callback (SCDC_TIMEOUT_CB) with arg 0 to signal
@@ -1099,12 +1099,12 @@ int scdc_timer_update_83(int a1, int a2, int a3)
  *
  * Timestamp word at 0x404D8.
  */
-int scdc_timer_update_cc(int a1, int a2, int a3)
+int scdc_update_frl_stable_timer(int a1, int a2, int a3)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     if (SCDC_TIMER_CC) {
-        uint32_t elapsed = video_timer_update_122((uint8_t *)0x404D8, a2, a3);
+        uint32_t elapsed = video_calc_elapsed_ticks((uint8_t *)0x404D8, a2, a3);
         if (SCDC_TIMER_CC <= elapsed)
             SCDC_TIMER_CC = 0;
         else
@@ -1125,20 +1125,20 @@ int scdc_timer_update_cc(int a1, int a2, int a3)
 }
 
 /*
- * scdc_timer_update_c8 — decrement link-loss countdown (event via FRL)
+ * scdc_update_link_loss_timer — decrement link-loss countdown (event via FRL)
  *
  * SCDC_TIMER_C8 counts link-loss intervals.  When it reaches zero while
- * not in state 7 (STABLE), kicks off frl_process_state_9() to attempt
+ * not in state 7 (STABLE), kicks off frl_fsm_advance_to_state9() to attempt
  * FRL re-training.
  */
-int scdc_timer_update_c8(void)
+int scdc_update_link_loss_timer(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     if (SCDC_TIMER_C8) {
         __disable_irq();
         if (--SCDC_TIMER_C8 == 0 && SCDC_STATE != 7)
-            frl_process_state_9();
+            frl_fsm_advance_to_state9();
         __enable_irq();
     }
 
@@ -1148,7 +1148,7 @@ int scdc_timer_update_c8(void)
 }
 
 /*
- * scdc_process_pending_reads — drain deferred DDC requests
+ * scdc_dispatch_pending_ddc_reqs — drain deferred DDC requests
  *
  * Called from the main loop after each DDC completion event.  Only one
  * deferred request is dispatched per call (priority order: flags > cfg_write
@@ -1156,7 +1156,7 @@ int scdc_timer_update_c8(void)
  *
  * Returns 1 if a deferred request was dispatched, 0 if none pending.
  */
-int scdc_process_pending_reads(void)
+int scdc_dispatch_pending_ddc_reqs(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
     int dispatched;
@@ -1187,17 +1187,17 @@ int scdc_process_pending_reads(void)
  * ========================================================================= */
 
 /*
- * scdc_state_transition_3 — INIT → READY transition (event: FRL training req)
+ * scdc_fsm_init_to_ready — INIT → READY transition (event: FRL training req)
  *
  * When in state 2 (INIT), copies the negotiated FRL lane config and
  * advances to state 3 (READY).  Also clears the FRL lock IRQ enable bit.
  */
-int scdc_state_transition_3(void)
+int scdc_fsm_init_to_ready(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     if (SCDC_STATE == 2) {  /* SCDC_STATE_INIT */
-        hw_misc_set_state_53(SCDC_LANE_CFG_A, SCDC_LANE_CFG_B);
+        hw_misc_scdc_apply_lane_config(SCDC_LANE_CFG_A, SCDC_LANE_CFG_B);
         SCDC_TIMER_C8 = SCDC_TIMEOUT_INIT;
         SCDC_STATE    = 3;  /* SCDC_STATE_READY */
     }
@@ -1209,18 +1209,18 @@ int scdc_state_transition_3(void)
 }
 
 /*
- * scdc_handle_event_76 — handle SCDC event 76 (FRL link ready from HW)
+ * scdc_handle_frl_hw_ready — handle SCDC event 76 (FRL link ready from HW)
  *
  * In state 2 (INIT), signals FRL set_hw_state_13 and enqueues event 76
  * (FRL_HW_READY) to the video event queue.
  * Clears the SCDC FRL-lock IRQ mask bit 0x1000.
  */
-int scdc_handle_event_76(void)
+int scdc_handle_frl_hw_ready(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     if (SCDC_STATE == 2) {
-        frl_set_hw_state_13();
+        frl_set_tx_force_bit();
         video_enqueue_event(76, 0, 0);
     }
     SCDC_IRQ_MASK &= ~0x1000u;
@@ -1231,18 +1231,18 @@ int scdc_handle_event_76(void)
 }
 
 /*
- * scdc_handle_event_77 — handle SCDC event 77 (FRL pattern lock)
+ * scdc_handle_frl_pattern_lock — handle SCDC event 77 (FRL pattern lock)
  *
  * In state 3 (READY), clears the scrambler enable bit, advances FRL state
  * machine, and enqueues event 77 (FRL_PATTERN_LOCK) to the video queue.
  */
-int scdc_handle_event_77(void)
+int scdc_handle_frl_pattern_lock(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     if (SCDC_STATE == 3) {  /* SCDC_STATE_READY */
         SCDC_IRQ_MASK &= ~8u;   /* disable scrambler IRQ */
-        frl_process_state_9();
+        frl_fsm_advance_to_state9();
         video_enqueue_event(77, 0, 0);
     }
     SCDC_IRQ_MASK &= ~0x20u;  /* clear pattern-lock IRQ enable */
@@ -1254,12 +1254,12 @@ int scdc_handle_event_77(void)
 }
 
 /*
- * scdc_handle_event_78 — handle SCDC event 78 (FRL training step complete)
+ * scdc_handle_frl_train_step — handle SCDC event 78 (FRL training step complete)
  *
  * In state 3 (READY), enqueues event 78 (FRL_TRAIN_STEP) and advances to
  * state 4 (WAIT_PS) with the link-loss timer reset.
  */
-int scdc_handle_event_78(void)
+int scdc_handle_frl_train_step(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
@@ -1276,13 +1276,13 @@ int scdc_handle_event_78(void)
 }
 
 /*
- * scdc_state_transition_4_to_5 — WAIT_PS → ACTIVE (poll PS == 0x80)
+ * scdc_fsm_wait_ps_to_active — WAIT_PS → ACTIVE (poll PS == 0x80)
  *
  * Polled from the periodic task.  In state 4, reads the PS register
  * and if it equals 0x80 (FRL active, no errors) advances to state 5
  * and notifies the HPD callback with arg 1 (link up).
  */
-int scdc_state_transition_4_to_5(void)
+int scdc_fsm_wait_ps_to_active(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
@@ -1302,21 +1302,21 @@ int scdc_state_transition_4_to_5(void)
 }
 
 /*
- * scdc_state_transition_81 — FRL_TRAINED → handle FRL training complete
+ * scdc_fsm_ready_to_frl_trained — FRL_TRAINED → handle FRL training complete
  *
  * In state 3 (READY, which is also used as "training complete" from event 81),
  * disables the FRL IRQ bit and enables FRL mode, then advances to state 6
  * (FRL_TRAINED) and enqueues event 81 (FRL_TRAINING_DONE).
  * Also clears the SCDC scrambler-enable IRQ (bit3).
  */
-int scdc_state_transition_81(void)
+int scdc_fsm_ready_to_frl_trained(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     if (SCDC_STATE == 3) {
         SCDC_IRQ_MASK &= ~0x10u;  /* disable FRL lock IRQ */
         SCDC_IRQ_MASK |=  0x2000u; /* enable FRL trained IRQ */
-        scdc_enable_feature_1();   /* switch to FRL mode */
+        scdc_enable_frl_mode();   /* switch to FRL mode */
         SCDC_STATE = 6;            /* SCDC_STATE_FRL_TRAINED */
         video_enqueue_event(81, 0, 0);
     }
@@ -1328,13 +1328,13 @@ int scdc_state_transition_81(void)
 }
 
 /*
- * scdc_state_transition_79 — FRL_TRAINED → STABLE (FRL link up)
+ * scdc_fsm_frl_trained_to_stable — FRL_TRAINED → STABLE (FRL link up)
  *
  * In state 6 (FRL_TRAINED), enqueues event 79 (FRL_LINK_UP), resets the
  * link-loss timer, advances to state 7 (STABLE), sets the FRL stable
  * countdown, and probes the link state.
  */
-int scdc_state_transition_79(void)
+int scdc_fsm_frl_trained_to_stable(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
@@ -1343,7 +1343,7 @@ int scdc_state_transition_79(void)
         SCDC_TIMER_C8  = 0;
         SCDC_STATE     = 7;   /* SCDC_STATE_STABLE */
         SCDC_TIMER_CC  = 100; /* 100-tick FRL stable monitoring window */
-        video_get_state_125(0x40458, 1);
+        video_snapshot_event_time(0x40458, 1);
     }
     SCDC_IRQ_MASK &= ~0x2000u;  /* disable FRL trained IRQ */
 
@@ -1353,22 +1353,22 @@ int scdc_state_transition_79(void)
 }
 
 /*
- * scdc_state_transition_5_to_3 — ACTIVE → READY (re-training requested)
+ * scdc_fsm_active_to_ready — ACTIVE → READY (re-training requested)
  *
  * In state 5 (ACTIVE), restores saved lane config, returns to state 3
  * (READY), and pulses the PHY reset line briefly via SCDC_PHY_CTRL bit2.
  *
- * @lane_b, @lane_a: lane configuration bytes for hw_misc_set_state_53
+ * @lane_b, @lane_a: lane configuration bytes for hw_misc_scdc_apply_lane_config
  *   (note: parameter order is reversed at the call site)
  */
-int scdc_state_transition_5_to_3(uint8_t lane_b, uint8_t lane_a)
+int scdc_fsm_active_to_ready(uint8_t lane_b, uint8_t lane_a)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     if (SCDC_STATE == 5) {
         SCDC_TIMER_C8  = SCDC_TIMEOUT_INIT;
         SCDC_STATE     = 3;  /* SCDC_STATE_READY */
-        hw_misc_set_state_53(lane_a, lane_b);
+        hw_misc_scdc_apply_lane_config(lane_a, lane_b);
         SCDC_PHY_CTRL |= 4u;   /* assert PHY reset */
         delay_loop(1);
         SCDC_PHY_CTRL &= ~4u;  /* deassert PHY reset */
@@ -1380,7 +1380,7 @@ int scdc_state_transition_5_to_3(uint8_t lane_b, uint8_t lane_a)
 }
 
 /*
- * scdc_force_state_3 — force FSM to READY state from any state
+ * scdc_fsm_force_ready — force FSM to READY state from any state
  *
  * Used when the host controller sends a force-retrain command.  Sets the
  * TX force-FRL bit, resets the link-loss timer, advances to state 3, stores
@@ -1389,7 +1389,7 @@ int scdc_state_transition_5_to_3(uint8_t lane_b, uint8_t lane_a)
  * @lane_b, @lane_a:  lane configuration
  * @timeout_cb:       callback invoked if FRL training times out
  */
-int scdc_force_state_3(uint8_t lane_b, uint8_t lane_a, uint32_t timeout_cb)
+int scdc_fsm_force_ready(uint8_t lane_b, uint8_t lane_a, uint32_t timeout_cb)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
@@ -1397,7 +1397,7 @@ int scdc_force_state_3(uint8_t lane_b, uint8_t lane_a, uint32_t timeout_cb)
     SCDC_TIMER_C8   = SCDC_TIMEOUT_INIT;
     SCDC_STATE      = 3;
     SCDC_TIMEOUT_CB = timeout_cb;
-    hw_misc_set_state_53(lane_a, lane_b);
+    hw_misc_scdc_apply_lane_config(lane_a, lane_b);
 
     if (REG_TCB_CURRENT_TASK != saved)
         system_halt_clear_flag();
@@ -1405,7 +1405,7 @@ int scdc_force_state_3(uint8_t lane_b, uint8_t lane_a, uint32_t timeout_cb)
 }
 
 /*
- * scdc_state_transition_5 — enter ACTIVE state: configure FRL TX scrambler
+ * scdc_fsm_enter_active_state — enter ACTIVE state: configure FRL TX scrambler
  *
  * This is the main FRL activation path.  Called when the FRL link has been
  * fully trained and is ready to carry video data.
@@ -1417,19 +1417,19 @@ int scdc_force_state_3(uint8_t lane_b, uint8_t lane_a, uint32_t timeout_cb)
  *   4. Clear the FRL scrambler enable bit (bit22) → re-enable below
  *   5. Set the FRL scrambler bit count (bits [10:8] of SCDC_FRL_CTRL)
  *   6. Clear the FRL aux scrambler disable (bit11)
- *   7. Enable video RX lane (video_set_hw_state_152)
+ *   7. Enable video RX lane (video_main_ctrl_set_bit0)
  *   8. Clear FRL error accumulator bit (bit22)
  *   9. Set FRL data-path enable bit (bit21)
  *  10. Set SCDC FRL lock flag
  *  11. Advance SCDC_EARC_STATE to 5
- *  12. Trigger video_check_state_41() to validate video timing
+ *  12. Trigger video_is_debug_flag_bit4_set() to validate video timing
  */
-int scdc_state_transition_5(void)
+int scdc_fsm_enter_active_state(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     /* Configure FRL rate in the extended control word */
-    video_set_hw_state_63(SCDC_FRL_RATE, 1);
+    video_frl_rate_regs_apply(SCDC_FRL_RATE, 1);
 
     /* Enable FRL TX and configure scrambler */
     SCDC_CTRL_EXT |=  0x80000000u;  /* enable FRL TX */
@@ -1438,13 +1438,13 @@ int scdc_state_transition_5(void)
     SCDC_FRL_CTRL &= ~0x800u;       /* enable FRL scrambler */
 
     SCDC_CTRL_EXT &= ~0x800000u;    /* clear FRL scrambler error flag */
-    video_set_hw_state_152(1);      /* enable video RX lane */
+    video_main_ctrl_set_bit0(1);      /* enable video RX lane */
     SCDC_CTRL_EXT &= ~0x400000u;    /* clear FRL error accumulator */
     SCDC_CTRL_EXT |=  0x200000u;    /* enable FRL data path */
 
     REG_SCDC_FRL_LOCK   = 1;
     SCDC_EARC_STATE     = 5;
-    video_check_state_41();
+    video_is_debug_flag_bit4_set();
 
     if (REG_TCB_CURRENT_TASK != saved)
         system_halt_clear_flag();
@@ -1452,13 +1452,13 @@ int scdc_state_transition_5(void)
 }
 
 /*
- * scdc_execute_callback_or_default — reset FSM and invoke link-loss handler
+ * scdc_handle_link_loss_timeout — reset FSM and invoke link-loss handler
  *
  * Resets SCDC to state 1 (RESET), then invokes the registered timeout
  * callback (if any) with arg 255 (= link completely lost).  If no callback
  * is registered, falls through to the default hw_misc recovery path.
  */
-int scdc_execute_callback_or_default(void)
+int scdc_handle_link_loss_timeout(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
@@ -1473,7 +1473,7 @@ int scdc_execute_callback_or_default(void)
     if (cb)
         cb(255);
     else
-        hw_misc_process_state_96();
+        hw_misc_frl_link_loss_recovery();
 
     if (REG_TCB_CURRENT_TASK != saved)
         system_halt_clear_flag();
@@ -1485,7 +1485,7 @@ int scdc_execute_callback_or_default(void)
  * ========================================================================= */
 
 /*
- * scdc_handle_event_87 — FRL lane status changed (IRQ from SCDC_STATUS_1)
+ * scdc_handle_frl_lane_error_update — FRL lane status changed (IRQ from SCDC_STATUS_1)
  *
  * Reads the lane error counts from SCDC_STATUS_1, fires the registered
  * FRL-rate-change callback, and enqueues event 87 (FRL_LANE_STATUS) with
@@ -1497,7 +1497,7 @@ int scdc_execute_callback_or_default(void)
  *   bits [19:16]  = lane 2 bit error count (v3)
  *   bits [23:20]  = lane 3 bit error count (v4)
  */
-int scdc_handle_event_87(void)
+int scdc_handle_frl_lane_error_update(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
@@ -1520,7 +1520,7 @@ int scdc_handle_event_87(void)
 }
 
 /*
- * scdc_handle_event_93 — FRL link-status changed (scrambler / EARC update)
+ * scdc_handle_frl_link_status_change — FRL link-status changed (scrambler / EARC update)
  *
  * Reads the FRL scrambling status (SCDC_FRL_CTRL_EXT bit30 = DSC active),
  * the eARC enable flag, and the FRL state to compose the SCDC link-status
@@ -1528,12 +1528,12 @@ int scdc_handle_event_87(void)
  *   - If FRL is active: configures HDCP authentication
  *   - Otherwise: enqueues event 93 (FRL_STATUS_CHANGE) with FRL state
  */
-int scdc_handle_event_93(void)
+int scdc_handle_frl_link_status_change(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     int dsc_active  = (int)((REG_FRL_CTRL_EXT >> 30) & 1u);
-    uint8_t misc12  = (uint8_t)hw_misc_get_state_12();
+    uint8_t misc12  = (uint8_t)hw_misc_get_reg_39d();
     uint8_t scramble_byte = 0;
 
     /* Compose scramble control byte for hw_misc */
@@ -1543,7 +1543,7 @@ int scdc_handle_event_93(void)
         scramble_byte = (uint8_t)(1u << SCDC_DSC_MODE);
     }
 
-    int frl_active = frl_check_state_8();
+    int frl_active = frl_is_state_8_or_higher();
     uint8_t misc12_new;
 
     if (frl_active) {
@@ -1553,13 +1553,13 @@ int scdc_handle_event_93(void)
         misc12_new = misc12 & 0xFEu;
     }
 
-    hw_misc_set_state_65(scramble_byte);
-    hw_misc_set_state_66(misc12_new);
+    hw_misc_set_reg_398(scramble_byte);
+    hw_misc_set_reg_39d(misc12_new);
     REG_IRQ_FLAGS_1E5 |= 2u;  /* signal IRQ flags updated */
 
-    if (frl_check_state_8()) {
+    if (frl_is_state_8_or_higher()) {
         /* FRL active — arm HDCP authentication */
-        video_set_hw_state_109(1);
+        video_set_path_ctrl_bit27(1);
         REG_HDCP_AUTH_CTRL |= 0x400u;
         if (REG_HDCP_FLAGS_265) {
             if ((*(volatile uint8_t *)0x40100E16 & 4u) != 0)
@@ -1568,7 +1568,7 @@ int scdc_handle_event_93(void)
             REG_HDCP_FLAGS_265 = 127;
         }
     } else {
-        int frl_state = frl_check_state_8();
+        int frl_state = frl_is_state_8_or_higher();
         video_enqueue_event(93, frl_state, 0);
         if (REG_TCB_CURRENT_TASK != saved)
             system_halt_clear_flag();
@@ -1578,7 +1578,7 @@ int scdc_handle_event_93(void)
 }
 
 /*
- * scdc_handle_event_94 — eARC connection state changed
+ * scdc_handle_earc_state_change — eARC connection state changed
  *
  * If eARC is enabled (SCDC_EARC_ENABLED):
  *   - Updates misc12 bit0 = FRL active
@@ -1587,11 +1587,11 @@ int scdc_handle_event_93(void)
  * If eARC is disabled:
  *   - Clears misc12 bit1 (eARC bit) and enqueues event 94 with arg0=0
  */
-int scdc_handle_event_94(void)
+int scdc_handle_earc_state_change(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
-    uint8_t misc12    = (uint8_t)hw_misc_get_state_12();
+    uint8_t misc12    = (uint8_t)hw_misc_get_reg_39d();
     uint8_t misc12_new;
 
     if (SCDC_EARC_ENABLED) {
@@ -1599,12 +1599,12 @@ int scdc_handle_event_94(void)
     } else {
         misc12_new = misc12 & 0xFDu;
     }
-    hw_misc_set_state_66(misc12_new);
+    hw_misc_set_reg_39d(misc12_new);
 
     if (SCDC_EARC_ENABLED) {
         if ((REG_FRL_CTRL_EXT & 0x400000u) != 0) {
             /* FRL TX supports 400MHz — arm HDCP */
-            video_set_hw_state_109(1);
+            video_set_path_ctrl_bit27(1);
             REG_HDCP_AUTH_CTRL |= 0x400u;
             if (REG_HDCP_FLAGS_265) {
                 if ((*(volatile uint8_t *)0x40100E16 & 4u) != 0)
@@ -1626,18 +1626,18 @@ done:
 }
 
 /*
- * scdc_handle_event_101 — eARC / DDC idle poll
+ * scdc_poll_ddc_idle — eARC / DDC idle poll
  *
  * Clears the eARC check flag, runs the video idle state poll, and if SCDC
  * is in RESET (state 1) and eARC state is not 1, enqueues event 101 to
  * re-trigger the DDC idle scan.
  */
-int scdc_handle_event_101(void)
+int scdc_poll_ddc_idle(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     SCDC_EARC_CHK = 0;
-    video_process_state_120();
+    video_update_reg_335_353_wrapper();
     if (scdc_is_state_1() && SCDC_EARC_STATE != 1)
         video_enqueue_event(101, 0, 0);
 
@@ -1647,19 +1647,19 @@ int scdc_handle_event_101(void)
 }
 
 /*
- * scdc_handle_event_142 — HDCP / link reconfiguration request
+ * scdc_handle_hdcp_reconfig_req — HDCP / link reconfiguration request
  *
  * Enables hw_misc state 54, clears the link-down flag, resets the video
  * mode register, re-triggers video configuration, and re-enqueues event 142.
  */
-int scdc_handle_event_142(void)
+int scdc_handle_hdcp_reconfig_req(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
-    hw_misc_set_state_54(1);
+    hw_misc_set_reg_254(1);
     REG_LINK_DOWN_FLAG = 0;
-    video_set_hw_state_114();
-    video_process_state_113(4, 0);
+    video_update_reg_335_353();
+    video_handle_fatal_error_overlay(4, 0);
     video_enqueue_event(142, 0, 0);
 
     if (REG_TCB_CURRENT_TASK != saved)
@@ -1668,14 +1668,14 @@ int scdc_handle_event_142(void)
 }
 
 /*
- * scdc_handle_event_146 — HPD / link loss detection
+ * scdc_handle_hpd_or_link_loss — HPD / link loss detection
  *
  * Fired when SCDC_STATUS_0 changes indicate a link event.
  * - If bit3 (HotPlug) is set: clear the scrambler enable and re-write config
  * - If in FRL_TRAINED (6) or STABLE (7): check for ARC disconnect or PS != 1
  *   → if so, notify HPD callback with arg 2 (link down) and re-enqueue event 146
  */
-int scdc_handle_event_146(void)
+int scdc_handle_hpd_or_link_loss(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
@@ -1690,13 +1690,13 @@ int scdc_handle_event_146(void)
     if (SCDC_STATE == 7 || SCDC_STATE == 6) {
         if ((status0 & 0x20u) != 0) {
             /* ARC bit set → link lost */
-            hw_misc_set_state_51();
+            hw_misc_scdc_set_state3_timeout();
             if (SCDC_HPD_CB)
                 ((void (*)(int))SCDC_HPD_CB)(2);
             video_enqueue_event(146, 0, 0);
         } else if (((uint32_t)scdc_read_ps() >> 8 & 3u) != 1u) {
             /* PS state is not 1 (FRL active) → link lost */
-            hw_misc_set_state_51();
+            hw_misc_scdc_set_state3_timeout();
             if (SCDC_HPD_CB)
                 ((void (*)(int))SCDC_HPD_CB)(2);
             video_enqueue_event(146, 1, 0);
@@ -1713,21 +1713,21 @@ int scdc_handle_event_146(void)
  * ========================================================================= */
 
 /*
- * scdc_handle_event_11_32 — audio format change (eARC 32-channel event)
+ * scdc_handle_earc_32ch_event — audio format change (eARC 32-channel event)
  *
  * Dispatches an audio state refresh and enqueues video event 11 with the
  * current audio state code and subtype 32.  Also checks whether the DDC
  * engine has the eARC FIFO flag (bit5 of DDC_FLAGS = 0x20) and if so
  * enables the eARC FIFO drain bit in the SCDC register.
  */
-int scdc_handle_event_11_32(void)
+int scdc_handle_earc_32ch_event(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
-    audio_process_state_31();
+    audio_h14_status_reg_set_c000();
 
     __disable_irq();
-    uint8_t audio_state = (uint8_t)audio_get_state_92();
+    uint8_t audio_state = (uint8_t)audio_protocol_get_state_code();
     video_enqueue_event(11, audio_state, 32);
     __enable_irq();
 
@@ -1743,19 +1743,19 @@ int scdc_handle_event_11_32(void)
 }
 
 /*
- * scdc_handle_event_11_16 — audio format change (eARC 16-channel event)
+ * scdc_handle_earc_16ch_event — audio format change (eARC 16-channel event)
  *
  * Sets the eARC debounce timer to 20 ticks, enqueues video event 11 with
  * the audio state and subtype 16, then clears the eARC pending flag.
  */
-int scdc_handle_event_11_16(void)
+int scdc_handle_earc_16ch_event(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     REG_EARC_DEBOUNCE = 20;
 
     __disable_irq();
-    uint8_t audio_state = (uint8_t)audio_get_state_92();
+    uint8_t audio_state = (uint8_t)audio_protocol_get_state_code();
     video_enqueue_event(11, audio_state, 16);
     __enable_irq();
 
@@ -1767,7 +1767,7 @@ int scdc_handle_event_11_16(void)
 }
 
 /*
- * scdc_handle_event_84 — HDMI link-down: reset video and audio paths
+ * scdc_handle_link_down_cleanup — HDMI link-down: reset video and audio paths
  *
  * Complete link-down cleanup:
  *   - Disable eARC or FRL video (depending on DSC mode flag)
@@ -1777,34 +1777,34 @@ int scdc_handle_event_11_16(void)
  *   - Clear HDCP state
  *   - Enqueue event 84 (LINK_DOWN) if HPD is not being re-asserted
  */
-int scdc_handle_event_84(void)
+int scdc_handle_link_down_cleanup(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
     if (REG_EARC_FLAG_4E4) {
         /* DSC/eARC mode — disable eARC RX */
-        video_set_hw_state_153(0);
+        video_reg_f38_set_bit15(0);
     } else {
         /* Standard FRL mode */
-        video_set_hw_state_152(0);
+        video_main_ctrl_set_bit0(0);
         SCDC_CTRL_EXT &= ~0x800000u;  /* clear scrambler error */
         SCDC_CTRL_EXT &= ~0x400000u;  /* clear FRL error accumulator */
         REG_SCDC_FRL_LOCK = 0;
-        video_set_hw_state_7(0);
+        video_main_ctrl_set_bit4(0);
     }
 
-    video_set_hw_state_154(0);
+    video_main_ctrl_set_bit4_cond(0);
     REG_VIDEO_FLAGS_120    &= ~0x8000u;
-    video_set_hw_state_173();
+    video_main_ctrl_set_0a_and_clear();
     REG_LINK_DOWN_FLAG      = 0;
-    video_set_hw_state_114();
+    video_update_reg_335_353();
 
     if (REG_VIDEO_HPD_STATE) {
         /* HPD is being re-asserted — defer cleanup */
         REG_VIDEO_HPD_PENDING = 1;
     } else {
-        hw_misc_process_state_61();
-        audio_process_state_87();
+        hw_misc_clear_reg_492_and_irq_b();
+        audio_protocol_dispatch_rd_cmd();
 
         /* Clear HDCP / eARC session state */
         REG_EARC_HDCP_090 = 0;
@@ -1830,7 +1830,7 @@ int scdc_handle_event_84(void)
  * ========================================================================= */
 
 /*
- * scdc_update_config_5 — update FRL rate training state
+ * scdc_update_frl_trained_rate — update FRL rate training state
  *
  * If FRL training mode is active (SCDC_TRAIN_MODE == 1), records the newly
  * trained FRL rate in the trained-rates bitmask and updates the active rate.
@@ -1839,7 +1839,7 @@ int scdc_handle_event_84(void)
  *
  * @rate: FRL bit-rate code (3 = 3Gbps, 6, 8, 10, 12 = 12Gbps)
  */
-int scdc_update_config_5(uint8_t rate)
+int scdc_update_frl_trained_rate(uint8_t rate)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
@@ -1855,7 +1855,7 @@ int scdc_update_config_5(uint8_t rate)
     *(volatile uint8_t *)0x40455 = 0;
 
     /* Notify audio: new FRL rate (arg0=255=all, arg1=0x404C4=config base) */
-    audio_handle_event_99(255, 0x404C4, (int)trained_mask);
+    audio_handle_frl_training_result(255, 0x404C4, (int)trained_mask);
 
     if (REG_TCB_CURRENT_TASK != saved)
         system_halt_clear_flag();
@@ -1863,7 +1863,7 @@ int scdc_update_config_5(uint8_t rate)
 }
 
 /*
- * scdc_update_flags — update HDCP / video path flags on eARC state change
+ * scdc_update_hdcp_video_flags — update HDCP / video path flags on eARC state change
  *
  * @mode: 1 = eARC disconnected, 2 = eARC connected
  *
@@ -1872,7 +1872,7 @@ int scdc_update_config_5(uint8_t rate)
  *   - Re-enables HDCP video path
  *   - Reconfigures video mode (6 = eARC disconnect, 7 = eARC connect)
  */
-int scdc_update_flags(int mode)
+int scdc_update_hdcp_video_flags(int mode)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
 
@@ -1887,10 +1887,10 @@ int scdc_update_flags(int mode)
         goto done;
     }
 
-    misc12 = (uint8_t)hw_misc_get_state_12();
-    hw_misc_set_state_66((uint8_t)(misc12 & 0xFEu));
-    video_set_hw_state_109(1);
-    video_process_state_113(video_mode, 1);
+    misc12 = (uint8_t)hw_misc_get_reg_39d();
+    hw_misc_set_reg_39d((uint8_t)(misc12 & 0xFEu));
+    video_set_path_ctrl_bit27(1);
+    video_handle_fatal_error_overlay(video_mode, 1);
 
 done:
     if (REG_TCB_CURRENT_TASK != saved)
@@ -1899,7 +1899,7 @@ done:
 }
 
 /*
- * scdc_read_multiple_configs — verify that flash config area matches sentinels
+ * scdc_verify_nvram_sentinels — verify that flash config area matches sentinels
  *
  * Reads five 4-byte words from flash starting at @base_addr and compares
  * them against known sentinel values stored in SRAM at 0x40058 and 0x400A0.
@@ -1908,7 +1908,7 @@ done:
  *
  * Used during boot to detect whether NVRAM needs to be re-initialized.
  */
-int scdc_read_multiple_configs(int base_addr)
+int scdc_verify_nvram_sentinels(int base_addr)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
     int v0, v1, v2, v3, v4;
@@ -1933,7 +1933,7 @@ int scdc_read_multiple_configs(int base_addr)
 }
 
 /*
- * scdc_update_feature_flags — load feature flags from NVRAM / OTP
+ * scdc_load_nvram_feature_flags — load feature flags from NVRAM / OTP
  *
  * Reads the product mode from NVRAM and populates the feature enable flags:
  *   - Mode 1: copy flags from NVRAM region 0x40334 / 0x40331
@@ -1942,7 +1942,7 @@ int scdc_read_multiple_configs(int base_addr)
  *
  * Returns the final value of REG_FEAT_OUT_35F (eARC feature flag).
  */
-int scdc_update_feature_flags(void)
+int scdc_load_nvram_feature_flags(void)
 {
     if (REG_FEAT_MODE == 1) {
         REG_FEAT_OUT_340 = REG_FEAT_OUT_334;
@@ -1966,7 +1966,7 @@ int is_digit(int c)
 }
 
 /*
- * scdc_verify_config — verify a firmware config block against hardware status
+ * scdc_verify_fw_config_block — verify a firmware config block against hardware status
  *
  * Reads the firmware image at @fw_addr, then reads the hardware status byte
  * and compares it against @expected_status.  On mismatch, writes error code
@@ -1978,14 +1978,14 @@ int is_digit(int c)
  *
  * Returns 0 on match, 255 on read error or mismatch.
  */
-int scdc_verify_config(unsigned int fw_addr, int expected_status, int cfg_block)
+int scdc_verify_fw_config_block(unsigned int fw_addr, int expected_status, int cfg_block)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
     int result;
     uint8_t hw_status[4];
     uint32_t detail = (uint32_t)cfg_block;
 
-    hw_misc_set_state_56();
+    hw_misc_scdc_phy_ctrl_init();
 
     if (flash_read_firmware_image(fw_addr, fw_addr, cfg_block, 1) == 255) {
         result = 255;
@@ -2005,12 +2005,12 @@ int scdc_verify_config(unsigned int fw_addr, int expected_status, int cfg_block)
 }
 
 /*
- * scdc_update_hw_config — update extended SCDC control word from capability regs
+ * scdc_apply_capability_regs — update extended SCDC control word from capability regs
  *
  * Reads the SCDC capability bytes (0x40100C80–C81) and writes them into
  * SCDC_CTRL_EXT bits [17:16] (lane count) and bit 28 (scrambler polarity).
  */
-int scdc_update_hw_config(void)
+int scdc_apply_capability_regs(void)
 {
     SCDC_CTRL_EXT = (SCDC_CTRL_EXT & 0xEFFCFFFFu)
                   | (uint32_t)((SCDC_CAP_0 & 3u) << 16)
@@ -2019,14 +2019,14 @@ int scdc_update_hw_config(void)
 }
 
 /*
- * scdc_update_hw_config_2 — configure auxiliary scrambler path
+ * scdc_configure_aux_scrambler — configure auxiliary scrambler path
  *
  * @enable: 1 = enable auxiliary scrambler (eARC mode), 0 = disable
  *
  * When enabled, sets bits [4:3] = 0b10 in SCDC_AUX_CTRL and clears
  * SCDC_AUX2 bit0 (internal scrambler bypass).
  */
-int scdc_update_hw_config_2(int enable)
+int scdc_configure_aux_scrambler(int enable)
 {
     if (enable) {
         SCDC_AUX_CTRL = (SCDC_AUX_CTRL & 0xE7u) | 0x10u;
@@ -2038,7 +2038,7 @@ int scdc_update_hw_config_2(int enable)
 }
 
 /*
- * scdc_check_hw_status — check FRL PLL lock status
+ * scdc_check_frl_pll_lock — check FRL PLL lock status
  *
  * Pulses the PLL reset, waits, then reads the PLL lock bit.
  * If not locked, enables the PLL in hw_misc and re-reads.
@@ -2046,7 +2046,7 @@ int scdc_update_hw_config_2(int enable)
  * Returns true (1) if PLL was already locked, false (0) if recovery was
  * attempted (result of recovery stored in SRAM at 0x4025A/0x4025B).
  */
-int scdc_check_hw_status(void)
+int scdc_check_frl_pll_lock(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
     int locked;
@@ -2063,7 +2063,7 @@ int scdc_check_hw_status(void)
         locked = 1;
     } else {
         __disable_irq();
-        hw_misc_set_state_61();
+        hw_misc_irq_enable_mask_b_clear();
         __enable_irq();
         delay_loop(20);
 
@@ -2080,7 +2080,7 @@ int scdc_check_hw_status(void)
 }
 
 /*
- * scdc_check_status_bits — verify BIST lane error counts (20 high / 20 low)
+ * scdc_verify_bist_lane_errors — verify BIST lane error counts (20 high / 20 low)
  *
  * Counts set bits in SCDC_BIST_ERR1 (8 bits) and SCDC_BIST_ERR0 (32 bits).
  * Valid BIST pass requires exactly 20 bits set and 20 bits clear across both
@@ -2088,7 +2088,7 @@ int scdc_check_hw_status(void)
  *
  * Returns 0 on pass, 255 on fail.
  */
-int scdc_check_status_bits(void)
+int scdc_verify_bist_lane_errors(void)
 {
     uint32_t err1 = SCDC_BIST_ERR1;  /* 8-bit lane 1 error count */
     uint32_t err0 = SCDC_BIST_ERR0;  /* 32-bit lane 0 error count */
@@ -2120,7 +2120,7 @@ int scdc_check_status_bits(void)
 }
 
 /*
- * scdc_check_feature_support — check whether eARC feature is supported
+ * scdc_check_earc_capability — check whether eARC feature is supported
  *
  * Reads the IRQ flags to determine eARC capability:
  *   bit3 of REG_IRQ_FLAGS_1E4 = eARC capable
@@ -2129,7 +2129,7 @@ int scdc_check_status_bits(void)
  *
  * Returns 1 if eARC is supported and operational, 0 otherwise.
  */
-int scdc_check_feature_support(void)
+int scdc_check_earc_capability(void)
 {
     uint32_t saved = REG_TCB_CURRENT_TASK;
     int result;
@@ -2137,7 +2137,7 @@ int scdc_check_feature_support(void)
     if (((uint8_t)REG_IRQ_FLAGS_1E4 >> 3) & 1u) {
         if ((uint8_t)REG_IRQ_FLAGS_1E4 >> 7) {
             if (((uint8_t)REG_IRQ_FLAGS_1E4 >> 5) & 1u) {
-                if (!frl_check_state_8()) {
+                if (!frl_is_state_8_or_higher()) {
                     result = 0;
                     goto done;
                 }
@@ -2166,9 +2166,9 @@ done:
 /*
  * scdc_handle_event_84_aux — audio/video teardown for link-down (event 84)
  *
- * Secondary cleanup called by scdc_handle_event_84 when HPD is stable:
+ * Secondary cleanup called by scdc_handle_link_down_cleanup when HPD is stable:
  * resets eARC mute state and performs the hw_misc + audio cleanup.
- * (This is the scdc_execute_callback_or_default → hw_misc_process_state_96
+ * (This is the scdc_handle_link_loss_timeout → hw_misc_frl_link_loss_recovery
  * path, invoked via function pointer at SCDC_TIMEOUT_CB.)
  */
 
@@ -2177,7 +2177,7 @@ done:
  * ========================================================================= */
 
 /*
- * scdc_calculate_and_set_clock — compute FRL audio clock divider from
+ * scdc_calc_frl_audio_clock_div — compute FRL audio clock divider from
  *                                  pixel clock and FRL bit-rate
  *
  * The HDMI 2.1 FRL audio clock is derived from the pixel clock and the
@@ -2209,7 +2209,7 @@ done:
  *
  * @a1: FRL bit-rate code
  */
-int scdc_calculate_and_set_clock(int a1)
+int scdc_calc_frl_audio_clock_div(int a1)
 {
     int div = 5760;  /* default clock divider */
     uint32_t pclk = *(volatile uint8_t *)0x40260;

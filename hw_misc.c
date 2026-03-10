@@ -31,66 +31,66 @@ int flash_wait_ready(uint8_t *status);
 int flash_setup_magic_struct(uint32_t *dst, int cmd, int payload_addr);
 
 int audio_get_format(void);
-BOOL audio_check_state_80(void);
-int audio_update_hw_config(unsigned int cfg);
+BOOL audio_protocol_check_active(void);
+int audio_apply_port_config(unsigned int cfg);
 int audio_process_info_frame(void);
-int audio_process_state_87(void);
-int audio_mute_poll(int event);
-int audio_handle_mute_event(int enabled);
-int audio_timer_update_4(void);
-int audio_get_freq_constant(char value);
-int audio_get_freq_constant_2(unsigned int value);
+int audio_protocol_dispatch_rd_cmd(void);
+int audio_poll_mute_status(int event);
+int audio_apply_mute_and_freq(int enabled);
+int audio_protocol_update_timer(void);
+int audio_lookup_mute_freq_a(char value);
+int audio_lookup_mute_freq_b(unsigned int value);
 int audio_get_highest_bit(unsigned int value);
-int audio_get_hw_state_6(void);
+int audio_get_fifo_index_val(void);
 
-int scdc_update_feature_flags(void);
-int scdc_update_hw_config(void);
-BOOL scdc_check_hw_status(void);
-int scdc_calculate_and_set_clock(int rate);
+int scdc_load_nvram_feature_flags(void);
+int scdc_apply_capability_regs(void);
+BOOL scdc_check_frl_pll_lock(void);
+int scdc_calc_frl_audio_clock_div(int rate);
 
 int video_enqueue_event(int event, char arg0, char arg1);
-int video_check_state_2(void);
-int video_check_state_20(void);
-int video_check_state_37(void);
-int video_check_state_41(void);
-int video_check_state_42(void);
-int video_get_state_81(void);
-int video_get_hw_state_27(int channel);
-int video_get_hw_state_28(int channel);
-int video_get_hw_state_31(int channel);
-int video_irq_handler_1(void);
-int video_process_state_33(void);
-int video_process_state_56(void);
-int video_process_state_59(void);
-int video_process_state_73(void);
-int video_process_state_77(void);
-int video_process_state_82(void);
-int video_process_state_83(void);
-int video_process_state_103(void);
-int video_process_state_104(void);
-int video_process_state_113(int code, int fatal);
-int video_set_state_36(int addr);
-int video_set_hw_state_3(int enable);
-int video_set_hw_state_4(int enable);
-int video_set_hw_state_7(int enable);
-int video_set_hw_state_17(void);
-int video_set_hw_state_18(void);
-int video_set_hw_state_30(void);
-int video_set_hw_state_57(uint32_t arg);
-int video_set_hw_state_109(int enable);
-int video_set_hw_state_114(void);
-int video_set_hw_state_152(int enable);
-int video_set_hw_state_183(void);
-int video_set_hw_state_185(void);
-int video_read_hw_buffer(int offset);
+int video_is_flag_bit27_set(void);
+int video_is_active_and_not_muted(void);
+int video_is_debug_flag_bit0_set(void);
+int video_is_debug_flag_bit4_set(void);
+int video_is_debug_flag_bit3_set(void);
+int video_get_h23_work_pending(void);
+int video_get_timing_lock_bit3(int channel);
+int video_get_timing_lock_bit6(int channel);
+int video_get_timing_lock_bit7(int channel);
+int video_hpd_irq_handler(void);
+int video_update_audio_infoframes(void);
+int video_pulse_reg_e1d_wrapper(void);
+int video_cmdif_stream_regs_if_debug(void);
+int video_poll_vpll_warn_irq(void);
+int video_update_reg_1607_bit4(void);
+int video_enqueue_event_110_0(void);
+int video_enqueue_event_110_ff(void);
+int video_enqueue_event_103(void);
+int video_enqueue_event_104(void);
+int video_handle_fatal_error_overlay(int code, int fatal);
+int video_cmdif_set_req_state(int addr);
+int video_set_reg_e55(int enable);
+int video_set_reg_31b(int enable);
+int video_main_ctrl_set_bit4(int enable);
+int video_clear_reg_1038_bit25(void);
+int video_set_reg_1038_bit25_and_1068(void);
+int video_set_earc_ctrl_0800(void);
+int video_pulse_reg_e1d(uint32_t arg);
+int video_set_path_ctrl_bit27(int enable);
+int video_update_reg_335_353(void);
+int video_main_ctrl_set_bit0(int enable);
+int video_clear_mode_flags_bit8(void);
+int video_clear_mode_flags_bit16(void);
+int video_read_h23_readbuf(int offset);
 
 int ddc_transfer_abort_callback(void);
 int ddc_write_request(int dev_addr, int reg_offset, uint16_t *req);
 int i2c_slave_clear_irq(void);
 
 /* Local forward declarations for cross-referenced exported helpers. */
-int hw_misc_set_state_50(void);
-int hw_misc_process_state_61(void);
+int hw_misc_kick_watchdog(void);
+int hw_misc_clear_reg_492_and_irq_b(void);
 int hw_misc_process_state_152(void);
 int hw_misc_process_state_154(void);
 
@@ -257,7 +257,7 @@ static void hw_misc_cmdif_stage_reset_b(void)
     REG8(0x401D2) = 0;
 }
 
-static int hw_misc_process_state_5(void)
+static int hw_misc_hdcp_auth_init(void)
 {
     __disable_irq();
     if (REG8(0x40264) != 0u) {
@@ -281,7 +281,7 @@ static int hw_misc_process_state_5(void)
 /* Frequently used boot / clock / interrupt helpers                           */
 /* ========================================================================= */
 
-int hw_misc_set_state_1(void)
+int hw_misc_disable_clk_run_bits(void)
 {
     HW_MISC_TASK_GUARD();
     REG_IRQ_ENABLE_A &= ~REG_CLK_RUN_BIT;
@@ -289,7 +289,7 @@ int hw_misc_set_state_1(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_init_state_1(void)
+int hw_misc_copy_rom_defaults(void)
 {
     HW_MISC_TASK_GUARD();
 
@@ -303,11 +303,11 @@ int hw_misc_init_state_1(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_4(void)  { HW_MISC_TASK_GUARD(); REG_MISC_IRQ_ROUTE |= 0x200u; HW_MISC_TASK_RETURN((int)saved_task); }
-int hw_misc_set_state_5(void)  { HW_MISC_TASK_GUARD(); REG_MISC_IRQ_ROUTE &= ~0x200u; HW_MISC_TASK_RETURN((int)saved_task); }
-int hw_misc_set_state_6(void)  { HW_MISC_TASK_GUARD(); REG32(0x401002C4) &= ~0x00100000u; HW_MISC_TASK_RETURN((int)saved_task); }
+int hw_misc_enable_hdcp_auth_irq(void)  { HW_MISC_TASK_GUARD(); REG_MISC_IRQ_ROUTE |= 0x200u; HW_MISC_TASK_RETURN((int)saved_task); }
+int hw_misc_disable_hdcp_auth_irq(void)  { HW_MISC_TASK_GUARD(); REG_MISC_IRQ_ROUTE &= ~0x200u; HW_MISC_TASK_RETURN((int)saved_task); }
+int hw_misc_clear_reg_2c4_bit20(void)  { HW_MISC_TASK_GUARD(); REG32(0x401002C4) &= ~0x00100000u; HW_MISC_TASK_RETURN((int)saved_task); }
 
-int hw_misc_set_state_7(void)
+int hw_misc_set_reg_238_234(void)
 {
     HW_MISC_TASK_GUARD();
     REG32(0x40100238) |= 0x8000u;
@@ -315,7 +315,7 @@ int hw_misc_set_state_7(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_3(void)
+int hw_misc_update_reg_29c(void)
 {
     HW_MISC_TASK_GUARD();
     if ((REG8(0x40100B3A) & 0x20u) != 0u)
@@ -325,16 +325,16 @@ int hw_misc_process_state_3(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_check_state_3(void)
+int hw_misc_is_sink_count_1(void)
 {
     return (REG_SINK_COUNT_FLAG & 1u) != 0u;
 }
 
-int hw_misc_process_state_4(void)
+int hw_misc_handle_sink_count_change(void)
 {
     HW_MISC_TASK_GUARD();
 
-    if (hw_misc_check_state_3() || (REG8(0x401E5) & 4u) != 0u) {
+    if (hw_misc_is_sink_count_1() || (REG8(0x401E5) & 4u) != 0u) {
         custom_printf("SINK_COUNT = 1\n");
         hw_misc_cmdif_stage_reset_a();
         __disable_irq();
@@ -353,13 +353,13 @@ int hw_misc_process_state_4(void)
         REG32(0x4010035C) = 0u;
     }
 
-    if (!hw_misc_check_state_3())
+    if (!hw_misc_is_sink_count_1())
         REG32(0x40494) = 0u;
 
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_6(void)
+int hw_misc_check_crash_magic(void)
 {
     HW_MISC_TASK_GUARD();
     if (CRASH_MAGIC == CRASH_MAGIC_VALUE) {
@@ -369,7 +369,7 @@ int hw_misc_process_state_6(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_12(void)
+int hw_misc_top_irq_handler_and_yield(void)
 {
     HW_MISC_TASK_GUARD();
 
@@ -385,7 +385,7 @@ int hw_misc_process_state_12(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_9(void)
+int hw_misc_irq_enable_b_clear_bit0(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40100E50) |= 1u;
@@ -394,7 +394,7 @@ int hw_misc_set_state_9(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_10(void)
+int hw_misc_clear_all_irqs(void)
 {
     HW_MISC_TASK_GUARD();
     REG_IRQ_CLEAR_A = 0xFFFFFFFFu;
@@ -403,7 +403,7 @@ int hw_misc_set_state_10(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_24(void)
+int hw_misc_poll_hpd_event_flags(void)
 {
     HW_MISC_TASK_GUARD();
 
@@ -412,7 +412,7 @@ int hw_misc_process_state_24(void)
         REG_HPD_EVENT_FLAGS |= 1u;
         __disable_irq();
         for (;;) {
-            hw_misc_set_state_50();
+            hw_misc_kick_watchdog();
         }
     }
 
@@ -420,14 +420,14 @@ int hw_misc_process_state_24(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_21(void)
+int hw_misc_enable_scb_irqs(void)
 {
     HW_MISC_TASK_GUARD();
     REG32(0xE000ED24) |= 0x00070000u;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_25(void)
+int hw_misc_wait_for_boot_flag(void)
 {
     HW_MISC_TASK_GUARD();
 
@@ -454,15 +454,15 @@ int hw_misc_process_state_25(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_28(void)
+int hw_misc_hpd_plugin_handler(void)
 {
     HW_MISC_TASK_GUARD();
-    hw_misc_process_state_4();
-    hw_misc_process_state_5();
+    hw_misc_handle_sink_count_change();
+    hw_misc_hdcp_auth_init();
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_31(void)
+int hw_misc_cmdif_reset_all(void)
 {
     HW_MISC_TASK_GUARD();
     hw_misc_cmdif_stage_reset_a();
@@ -471,7 +471,7 @@ int hw_misc_process_state_31(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_init_state_2(void)
+int hw_misc_clear_video_audio_regs(void)
 {
     HW_MISC_TASK_GUARD();
 
@@ -496,13 +496,13 @@ int hw_misc_init_state_2(void)
     bzero_align((uint32_t *)0x41BD8, 14u);
     hw_misc_cmdif_stage_reset_a();
     hw_misc_cmdif_stage_reset_b();
-    video_set_hw_state_183();
-    video_set_hw_state_185();
+    video_clear_mode_flags_bit8();
+    video_clear_mode_flags_bit16();
 
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_25(void)
+int hw_misc_ddc_mode_init(void)
 {
     HW_MISC_TASK_GUARD();
     REG_AUDIO_DDC_MODE &= 0xFFF8FFFFu;
@@ -512,7 +512,7 @@ int hw_misc_set_state_25(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_33(unsigned int cap_byte)
+int hw_misc_apply_hdmi_cap_byte(unsigned int cap_byte)
 {
     HW_MISC_TASK_GUARD();
 
@@ -526,7 +526,7 @@ int hw_misc_process_state_33(unsigned int cap_byte)
     REG8(0x40100777) = 39u;
     REG8(0x4010077B) &= (uint8_t)~0x80u;
 
-    audio_update_hw_config(cap_byte);
+    audio_apply_port_config(cap_byte);
 
     REG8(0x4010073C) = 0xCDu;
     REG_AUDIO_MUTE_ACTIVE = (REG8(0x4010073D) & 0x10u) != 0u;
@@ -539,7 +539,7 @@ int hw_misc_process_state_33(unsigned int cap_byte)
         REG_AUDIO_CS_BYTE2 = mute_code;
     }
 
-    video_process_state_33();
+    video_update_audio_infoframes();
     REG16(0x403C2) = (uint16_t)cap_byte;
     REG8(0x403C4) = REG8(0x4010169A) & 1u;
     REG8(0x40100700) |= 0x80u;
@@ -547,7 +547,7 @@ int hw_misc_process_state_33(unsigned int cap_byte)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_34(void)
+int hw_misc_poll_audio_status_page9(void)
 {
     HW_MISC_TASK_GUARD();
     __disable_irq();
@@ -563,7 +563,7 @@ int hw_misc_process_state_34(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_26(void)
+int hw_misc_irq_routing_init(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40100E42) |= 0x10u;
@@ -579,14 +579,14 @@ int hw_misc_set_state_26(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_35(void)
+int hw_misc_irq_mask_a_enable_lower(void)
 {
     HW_MISC_TASK_GUARD();
     REG_IRQ_ENABLE_MASK_A |= 0x0Fu;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_timer_update_3(void)
+int hw_misc_update_audio_notify_timer(void)
 {
     HW_MISC_TASK_GUARD();
 
@@ -595,13 +595,13 @@ int hw_misc_timer_update_3(void)
         --REG32(0x403A4);
         __enable_irq();
     }
-    if (video_get_hw_state_31(0) && video_get_hw_state_28(0))
-        video_get_hw_state_27(0);
+    if (video_get_timing_lock_bit7(0) && video_get_timing_lock_bit6(0))
+        video_get_timing_lock_bit3(0);
 
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_28(unsigned int cfg)
+int hw_misc_phy_serialiser_init(unsigned int cfg)
 {
     HW_MISC_TASK_GUARD();
     if (cfg < 8u)
@@ -614,7 +614,7 @@ int hw_misc_set_state_28(unsigned int cfg)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_29(void)
+int hw_misc_power_up_output_stage(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40100E18) |= 1u;
@@ -626,7 +626,7 @@ int hw_misc_set_state_29(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_38(int seed_ptr)
+int hw_misc_seed_prng_and_clock(int seed_ptr)
 {
     HW_MISC_TASK_GUARD();
     prng_seed_lcg(REG32((uintptr_t)seed_ptr + 68u));
@@ -635,7 +635,7 @@ int hw_misc_process_state_38(int seed_ptr)
     HW_MISC_TASK_RETURN(1);
 }
 
-int hw_misc_process_state_39(void)
+int hw_misc_init_event_queue_slots(void)
 {
     HW_MISC_TASK_GUARD();
     for (uint8_t i = 0; i < 32u; ++i) {
@@ -651,7 +651,7 @@ int hw_misc_process_state_39(void)
 /* IRQ routing and boot-phase plumbing                                        */
 /* ========================================================================= */
 
-int hw_misc_process_state_43(void)
+int hw_misc_enable_top_irq_masks(void)
 {
     HW_MISC_TASK_GUARD();
     REG_TOP_IRQ_MASK |= 0x393FFu;
@@ -663,7 +663,7 @@ int hw_misc_process_state_43(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_44(void)
+int hw_misc_disable_audio_irqs_during_init(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40100E50) &= (uint8_t)~0x40u;
@@ -672,16 +672,16 @@ int hw_misc_process_state_44(void)
     REG32(0x40108000) = 0u;
     REG32(0x40108058) = 0xFFFFFFFFu;
     REG32(0x40108050) = 0xFFFFFFFFu;
-    REG32(0x40108010) = 10u * (uint32_t)audio_get_hw_state_6();
+    REG32(0x40108010) = 10u * (uint32_t)audio_get_fifo_index_val();
     REG32(0x40108014) = 0u;
-    REG32(0x40108030) = 10u * (uint32_t)audio_get_hw_state_6();
+    REG32(0x40108030) = 10u * (uint32_t)audio_get_fifo_index_val();
     REG32(0x40108034) = 0u;
     REG32(0x40108054) |= 1u;
     REG32(0x40108000) = 3u;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_34(void)
+int hw_misc_enable_power_rail_a(void)
 {
     HW_MISC_TASK_GUARD();
     REG32(0xE000E280) = 0xFFFFFFFFu;
@@ -689,7 +689,7 @@ int hw_misc_set_state_34(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_35(void)
+int hw_misc_enable_power_rail_b(void)
 {
     HW_MISC_TASK_GUARD();
     REG32(0xE000E180) = 0xFFFFFFFFu;
@@ -697,7 +697,7 @@ int hw_misc_set_state_35(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_37(void)
+int hw_misc_set_serialiser_clock(void)
 {
     HW_MISC_TASK_GUARD();
     REG32(0xE000E100) = 234495u;
@@ -705,7 +705,7 @@ int hw_misc_set_state_37(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_init_state_3(void)
+int hw_misc_init_pll_and_fifo_regs(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x41069) = 0u;
@@ -737,7 +737,7 @@ int hw_misc_init_state_3(void)
 /* Audio / mute / FRL integration                                             */
 /* ========================================================================= */
 
-int hw_misc_process_state_54(void)
+int hw_misc_audio_route_earc_ctrl(void)
 {
     HW_MISC_TASK_GUARD();
     int fmt = audio_get_format();
@@ -751,7 +751,7 @@ int hw_misc_process_state_54(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_55(int a1, int a2, int a3)
+int hw_misc_hdcp_key_slot_init(int a1, int a2, int a3)
 {
     (void)a1;
     (void)a2;
@@ -770,19 +770,19 @@ int hw_misc_process_state_55(int a1, int a2, int a3)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_58(uint8_t *event)
+int hw_misc_handle_event_45_46_10_113(uint8_t *event)
 {
     HW_MISC_TASK_GUARD();
 
     switch (event[0]) {
     case 45:
-        video_process_state_103();
+        video_enqueue_event_103();
         break;
     case 46:
     case 47:
         break;
     case 10:
-        hw_misc_process_state_61();
+        hw_misc_clear_reg_492_and_irq_b();
         break;
     default:
         if (event[0] == 113 && event[1] == 0) {
@@ -796,7 +796,7 @@ int hw_misc_process_state_58(uint8_t *event)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_59(void)
+int hw_misc_poll_reg_492_49f(void)
 {
     HW_MISC_TASK_GUARD();
     if (REG8(0x40492) != 0u && REG8(0x4049F) != 0u) {
@@ -810,12 +810,12 @@ int hw_misc_process_state_59(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_return_state_2(void)
+int hw_misc_get_current_task(void)
 {
     return (int)REG_TCB_CURRENT_TASK;
 }
 
-int hw_misc_process_state_61(void)
+int hw_misc_clear_reg_492_and_irq_b(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40492) = 0u;
@@ -828,7 +828,7 @@ int hw_misc_process_state_61(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_48(void)
+int hw_misc_clear_reg_106e_106f(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x4010106E) = 0u;
@@ -837,14 +837,14 @@ int hw_misc_set_state_48(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_50(void)
+int hw_misc_kick_watchdog(void)
 {
     HW_MISC_TASK_GUARD();
     REG32(0x40108074) = REG_MISC_WDT_KICK_VAL;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_66(int *ctx)
+int hw_misc_lock_hpd_state(int *ctx)
 {
     HW_MISC_TASK_GUARD();
     (void)ctx;
@@ -855,7 +855,7 @@ int hw_misc_process_state_66(int *ctx)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_67(int *ctx)
+int hw_misc_unlock_hpd_state_and_check(int *ctx)
 {
     HW_MISC_TASK_GUARD();
     __disable_irq();
@@ -863,8 +863,8 @@ int hw_misc_process_state_67(int *ctx)
     if (REG_HPD_PENDING != 0u) {
         REG8(0x41090) = 0u;
         REG8(0x41094) = 0u;
-        hw_misc_process_state_61();
-        audio_process_state_87();
+        hw_misc_clear_reg_492_and_irq_b();
+        audio_protocol_dispatch_rd_cmd();
         REG8(0x41082) = 0u;
         REG32(0x41BD4) = 0u;
         REG8(0x41084) = 0u;
@@ -881,7 +881,7 @@ int hw_misc_process_state_67(int *ctx)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_51(void)
+int hw_misc_scdc_set_state3_timeout(void)
 {
     HW_MISC_TASK_GUARD();
     REG_FRL_SCDC_STATE = 3u;
@@ -890,7 +890,7 @@ int hw_misc_set_state_51(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_53(char lane_a, char lane_b)
+int hw_misc_scdc_apply_lane_config(char lane_a, char lane_b)
 {
     HW_MISC_TASK_GUARD();
     REG32(0x4010125C) = 8248u;
@@ -900,36 +900,36 @@ int hw_misc_set_state_53(char lane_a, char lane_b)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_70(void)
+int hw_misc_clear_frl_pll_ctrl_bits(void)
 {
     HW_MISC_TASK_GUARD();
-    video_set_hw_state_152(0);
+    video_main_ctrl_set_bit0(0);
     REG32(0x40100E0C) &= ~0x00200000u;
     REG32(0x40100E0C) &= ~0x00800000u;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_54(int enable)
+int hw_misc_set_reg_254(int enable)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40254) = (enable != 0) ? 1u : 0u;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_timer_update_4(void)
+int hw_misc_update_timers_6b_6e(void)
 {
     HW_MISC_TASK_GUARD();
 
     if (REG8(0x4106B) != 0u) {
         --REG8(0x4106B);
         if (REG8(0x4106B) == 0u && REG8(0x41069) == 3u)
-            video_check_state_37();
+            video_is_debug_flag_bit0_set();
     }
 
     if (REG8(0x4106E) != 0u) {
         --REG8(0x4106E);
         if (REG8(0x4106E) == 0u && REG8(0x41069) == 6u) {
-            if (scdc_check_hw_status()) {
+            if (scdc_check_frl_pll_lock()) {
                 REG8(0x40101288) |= 0xA0u;
             } else {
                 __disable_irq();
@@ -943,7 +943,7 @@ int hw_misc_timer_update_4(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_56(void)
+int hw_misc_scdc_phy_ctrl_init(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x4010125C) = 0x80u;
@@ -953,7 +953,7 @@ int hw_misc_set_state_56(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_59(void)
+int hw_misc_init_regs_1300_131d(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40101300) = 0xA4u;
@@ -969,12 +969,12 @@ int hw_misc_set_state_59(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-uint64_t hw_misc_process_state_82(uint64_t value)
+uint64_t hw_misc_trunc_float64(uint64_t value)
 {
     return float64_trunc_to_integral_bits(value);
 }
 
-int hw_misc_process_state_84(void)
+int hw_misc_poll_audio_mute_and_csb(void)
 {
     HW_MISC_TASK_GUARD();
 
@@ -982,7 +982,7 @@ int hw_misc_process_state_84(void)
     uint8_t mute_code = REG8(0x4010162C) & 0x0Fu;
     if (REG_AUDIO_MUTE_CODE != mute_code) {
         REG_AUDIO_MUTE_CODE = mute_code;
-        video_process_state_33();
+        video_update_audio_infoframes();
         changed = 1;
     }
 
@@ -1006,7 +1006,7 @@ int hw_misc_process_state_84(void)
         REG_AUDIO_MUTE_SOURCE |= stereo_family ? 0x10u : 0x20u;
         REG_AUDIO_ROUTE_POLARITY = (uint8_t)stereo_family;
         REG_AUDIO_NOTIFY_PENDING = 1u;
-        video_process_state_33();
+        video_update_audio_infoframes();
     }
 
     if ((int8_t)REG_AUDIO_MISC_STATUS < 0) {
@@ -1027,7 +1027,7 @@ int hw_misc_process_state_84(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_61(void)
+int hw_misc_irq_enable_mask_b_clear(void)
 {
     HW_MISC_TASK_GUARD();
     REG32(0x40101270) = 0x10000u;
@@ -1035,7 +1035,7 @@ int hw_misc_set_state_61(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_85(uint8_t *event)
+int hw_misc_handle_event_41_cmdif(uint8_t *event)
 {
     HW_MISC_TASK_GUARD();
 
@@ -1065,14 +1065,14 @@ int hw_misc_process_state_85(uint8_t *event)
                 REG8(0x401B8) = 1u;
             }
         } else {
-            video_set_state_36(1074791654);
+            video_cmdif_set_req_state(1074791654);
         }
     }
 
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_86(void)
+int hw_misc_enable_phy_pll_and_wait(void)
 {
     HW_MISC_TASK_GUARD();
 
@@ -1080,7 +1080,7 @@ int hw_misc_process_state_86(void)
     REG8(0x4035C) = 1u;
     REG32(0x401004E4) |= 0x00010000u;
 
-    int feature = scdc_update_feature_flags();
+    int feature = scdc_load_nvram_feature_flags();
     REG8(0x4035F) = (uint8_t)feature;
     if (feature == 0)
         REG32(0x4033C) = 0x2000u;
@@ -1090,7 +1090,7 @@ int hw_misc_process_state_86(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_87(int bit0, int bit1, int bit2)
+int hw_misc_set_reg_114_bits(int bit0, int bit1, int bit2)
 {
     HW_MISC_TASK_GUARD();
     uint32_t v = 0u;
@@ -1101,15 +1101,15 @@ int hw_misc_process_state_87(int bit0, int bit1, int bit2)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_96(void)
+int hw_misc_frl_link_loss_recovery(void)
 {
     HW_MISC_TASK_GUARD();
-    video_set_hw_state_7(0);
-    hw_misc_process_state_70();
+    video_main_ctrl_set_bit4(0);
+    hw_misc_clear_frl_pll_ctrl_bits();
     REG8(0x4026C) = 0u;
     REG_EARC_STATUS_LATCH = 0u;
     REG_FRL_MODE_INDEX = 0u;
-    video_check_state_41();
+    video_is_debug_flag_bit4_set();
     REG8(0x41C04) = 0u;
     if (REG_EARC_CHECK_FLAG != 0u) {
         REG_EARC_STATE = 4u;
@@ -1122,29 +1122,29 @@ int hw_misc_process_state_96(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_63(void)
+int hw_misc_clear_reg_1996_bit2(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40101996) &= (uint8_t)~4u;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_64(void)
+int hw_misc_clear_reg_38b(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x4038B) = 0u;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_process_state_99(void)
+int hw_misc_check_reg_9b8_and_audio(void)
 {
     HW_MISC_TASK_GUARD();
     int enable_default = 1;
-    if ((REG32(0x401009B8) & 2u) != 0u && audio_check_state_80()) {
-        video_set_hw_state_18();
+    if ((REG32(0x401009B8) & 2u) != 0u && audio_protocol_check_active()) {
+        video_set_reg_1038_bit25_and_1068();
         enable_default = 0;
     } else {
-        video_set_hw_state_17();
+        video_clear_reg_1038_bit25();
     }
     HW_MISC_TASK_RETURN(enable_default);
 }
@@ -1155,10 +1155,10 @@ int hw_misc_process_state_101(uint8_t *event)
 
     if (event[0] == 51u) {
         if (event[1] == 1u) {
-            video_check_state_42();
+            video_is_debug_flag_bit3_set();
             REG8(0x402A1) = 0u;
         } else if (event[1] == 2u) {
-            video_check_state_42();
+            video_is_debug_flag_bit3_set();
             REG8(0x402A1) = 2u;
             i2c_slave_clear_irq();
             REG32(0x401002C2) |= 0xC0u;
@@ -1206,7 +1206,7 @@ int hw_misc_process_state_107(int cfg)
     }
 
     if ((delta & 2u) != 0u)
-        video_process_state_77();
+        video_update_reg_1607_bit4();
 
     if (REG8(0x4038A) == 1u && (delta & 4u) != 0u) {
         if ((cfg & 4) != 0)
@@ -1220,19 +1220,19 @@ int hw_misc_process_state_107(int cfg)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_65(char value)
+int hw_misc_set_reg_398(char value)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40100398) = (uint8_t)value;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_get_state_12(void)
+int hw_misc_get_reg_39d(void)
 {
     return (int)REG8(0x4010039D);
 }
 
-int hw_misc_set_state_66(char value)
+int hw_misc_set_reg_39d(char value)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x4010039D) = (uint8_t)value;
@@ -1270,7 +1270,7 @@ int hw_misc_process_state_124(int flags, int hpd_state)
     REG8(0x401DA) = 0u;
     REG8(0x401DB) = 0u;
     REG_LINK_DOWN_FLAG = 0u;
-    video_set_hw_state_114();
+    video_update_reg_335_353();
 
     REG32(0x40F5C) = 2109454u;
     REG32(0x40F60) = 2109455u;
@@ -1340,7 +1340,7 @@ int hw_misc_process_state_124(int flags, int hpd_state)
     REG8(0x401F8) = REG8(0x4010043F);
     REG8(0x401FA) = REG8(0x40100440) & 3u;
     REG16(0x401FC) = (uint16_t)((REG16(0x40100440) >> 2) & 0x03FFu);
-    REG32(0x404D4) = (uint32_t)(uintptr_t)video_set_hw_state_57;
+    REG32(0x404D4) = (uint32_t)(uintptr_t)video_pulse_reg_e1d;
 
     REG8(0x401004B0) = 44u;
     REG8(0x401004B1) = 216u;
@@ -1353,7 +1353,7 @@ int hw_misc_process_state_124(int flags, int hpd_state)
     REG8(0x401004B8) = 36u;
     REG8(0x401004B9) = 152u;
 
-    video_set_hw_state_4(1);
+    video_set_reg_31b(1);
     REG8(0x401E5) &= (uint8_t)~1u;
     REG8(0x401E4) = REG8(0x4010038E);
     REG8(0x401E5) = (uint8_t)((REG8(0x401E5) & 0xFBu)
@@ -1362,14 +1362,14 @@ int hw_misc_process_state_124(int flags, int hpd_state)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_timer_update_6(void)
+int hw_misc_update_timers_2a1_1cc_200_1d0(void)
 {
     HW_MISC_TASK_GUARD();
 
     if (REG8(0x402A1) != 0u) {
         --REG8(0x402A1);
         if (REG8(0x402A1) == 0u)
-            video_process_state_59();
+            video_cmdif_stream_regs_if_debug();
     }
 
     if (REG8(0x401CC) != 0u)
@@ -1391,7 +1391,7 @@ int hw_misc_timer_update_6(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_69(void)
+int hw_misc_disable_irq_a_b_bit1(void)
 {
     HW_MISC_TASK_GUARD();
     REG8(0x40100E51) &= 0xF3u;
@@ -1400,14 +1400,14 @@ int hw_misc_set_state_69(void)
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_set_state_73(void)
+int hw_misc_enable_hdcp_irq_mask(void)
 {
     HW_MISC_TASK_GUARD();
     REG32(0x40101294) |= 0x007C0735u;
     HW_MISC_TASK_RETURN((int)saved_task);
 }
 
-int hw_misc_init_state_6(void)
+int hw_misc_audio_earc_ctrl_init(void)
 {
     HW_MISC_TASK_GUARD();
 
@@ -1433,11 +1433,11 @@ int hw_misc_init_state_6(void)
     REG_AUDIO_EARC_CTRL &= ~0x40000000u;
     REG_AUDIO_EARC_CTRL |= 0x80000000u;
 
-    audio_handle_mute_event(0);
+    audio_apply_mute_and_freq(0);
     REG8(0x40101625) |= 0x80u;
     REG8(0x40100727) = 0xE0u;
     REG8(0x40100704) |= 0x40u;
-    video_set_hw_state_30();
+    video_set_earc_ctrl_0800();
 
     HW_MISC_TASK_RETURN((int)saved_task);
 }
@@ -1454,7 +1454,7 @@ int hw_misc_process_state_146(void)
     uint8_t high = REG_VIDEO_STATUS_FLAGS_HI;
     uint8_t packed = (uint8_t)(((REG_VIDEO_STATUS_FLAGS >> 4) & 7u) | ((REG_VIDEO_STATUS_FLAGS_HI & 1u) << 3));
 
-    audio_mute_poll(REG_AUDIO_PATH_CFG);
+    audio_poll_mute_status(REG_AUDIO_PATH_CFG);
 
     if (low != 0u) {
         REG8(0x40100795) = low;
@@ -1502,9 +1502,9 @@ int hw_misc_process_state_147(void)
             uint8_t meas = REG_AUDIO_STATUS_DATA1;
             __enable_irq();
 
-            unsigned int ch_status_fs = (unsigned int)audio_get_freq_constant((char)meas);
+            unsigned int ch_status_fs = (unsigned int)audio_lookup_mute_freq_a((char)meas);
             if (ch_status_fs != 0xFFFFu && (REG_AUDIO_MEAS_FLAGS & 0x80u) == 0u) {
-                int measured_fs = audio_get_freq_constant_2((REG_AUDIO_MEAS_FLAGS >> 1) & 0x0Fu);
+                int measured_fs = audio_lookup_mute_freq_b((REG_AUDIO_MEAS_FLAGS >> 1) & 0x0Fu);
                 if (measured_fs != 0xFFFF && (ch_status_fs >> (scale - 1)) == (unsigned int)measured_fs) {
                     REG8(0x40100795) = 2u;
                     custom_printf("Clr FS_MISMATCH Mute cond\n");
@@ -1606,9 +1606,9 @@ int hw_misc_process_state_154(void)
         default: break;
         }
         if (REG_AUDIO_NON_PCM != 0u && (!fs_ok || scale == 1) && REG_AUDIO_SAMPLE_WIDTH == 3u)
-            audio_handle_mute_event(1);
+            audio_apply_mute_and_freq(1);
         else
-            audio_handle_mute_event(0);
+            audio_apply_mute_and_freq(0);
     }
 
     HW_MISC_TASK_RETURN((int)saved_task);
