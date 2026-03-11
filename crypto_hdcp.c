@@ -766,6 +766,331 @@ static int img4_parse_pubkey_blob_range(uint8_t *ptr, uint8_t *end,
     return 0;
 }
 
+/* -------------------------------------------------------------------------
+ * ROM-style IMG4 / ASN.1 helpers used by the recursive manifest validators.
+ * These mirror the descriptor contracts of sub_33B0 / sub_34C0 / sub_34E8 /
+ * sub_3538 rather than the higher-level convenience parsers above.
+ * ---------------------------------------------------------------------- */
+
+#define ROM_TAG64_SEQUENCE        0x2000000000000010ull
+#define ROM_TAG64_SET             0x2000000000000011ull
+#define ROM_TAG64_IA5STRING       22ull
+#define ROM_TAG64_INTEGER         2ull
+#define ROM_TAG64_OCTETSTRING     4ull
+#define ROM_TAG64_CONTEXT0        0xA000000000000000ull
+#define ROM_TAG64_CONTEXT1        0xA000000000000001ull
+
+typedef int (*img4_validator_callback_t)(uint32_t, int, uint32_t, uint32_t,
+                                         uint32_t *, uint32_t *, int);
+
+struct rom_tlv_desc {
+    uint32_t tag_lo;
+    uint32_t tag_hi;
+    uint32_t value_ptr;
+    uint32_t value_len;
+};
+
+struct rom_range32 {
+    uint32_t start;
+    uint32_t end;
+};
+
+struct rom_named_desc {
+    uint32_t name_ptr;
+    uint32_t name_len;
+    uint32_t reserved0;
+    uint32_t reserved1;
+    uint32_t child_value_ptr;
+    uint32_t child_value_len;
+    uint32_t child_tag_lo;
+    uint32_t child_tag_hi;
+};
+
+static uint64_t rom_make_tag64(uint32_t lo, uint32_t hi)
+{
+    return ((uint64_t)hi << 32u) | (uint64_t)lo;
+}
+
+static uint64_t rom_make_app_tag64_u32(uint32_t tag)
+{
+    return 0xE000000000000000ull | (uint64_t)tag;
+}
+
+static uint64_t rom_make_app_tag64_words(uint32_t lo, uint32_t hi)
+{
+    return rom_make_tag64(lo, hi | 0xE0000000u);
+}
+
+static uint64_t rom_tlv_desc_tag64(const struct rom_tlv_desc *desc)
+{
+    return rom_make_tag64(desc->tag_lo, desc->tag_hi);
+}
+
+static uint64_t rom_named_child_tag64(const struct rom_named_desc *desc)
+{
+    return rom_make_tag64(desc->child_tag_lo, desc->child_tag_hi);
+}
+
+static uint32_t *rom_named_child_pair(struct rom_named_desc *desc)
+{
+    return &desc->child_value_ptr;
+}
+
+static int rom_parse_tlv_pair(const uint32_t *pair,
+                              struct rom_tlv_desc *out,
+                              uint32_t *declared_len_out)
+{
+    uint8_t *ptr;
+    uint32_t available;
+    uint8_t first;
+    uint32_t tag_lo;
+    uint32_t tag_hi = 0u;
+    uint8_t len_first;
+    uint32_t remaining;
+
+    if (pair == NULL || out == NULL)
+        return 6;
+
+    ptr = (uint8_t *)(uintptr_t)pair[0];
+    available = pair[1];
+    if (available < 2u)
+        return 3;
+
+    first = *ptr++;
+    available -= 1u;
+    tag_lo = (uint32_t)(first & 0x1Fu);
+    if (tag_lo == 0x1Fu) {
+        uint8_t next_byte;
+
+        tag_lo = 0u;
+        next_byte = *ptr;
+        if (next_byte == 0x80u || next_byte < 0x1Fu)
+            return 3;
+        do {
+            if (available < 2u || (tag_hi & 0xFE000000u) != 0u)
+                return 3;
+            next_byte = *ptr++;
+            available -= 1u;
+            tag_hi = (tag_hi << 7u) | (tag_lo >> 25u);
+            tag_lo = (tag_lo << 7u) | (uint32_t)(next_byte & 0x7Fu);
+        } while ((next_byte & 0x80u) != 0u);
+        if ((tag_hi & 0xE0000000u) != 0u)
+            return 3;
+    }
+
+    out->tag_lo = tag_lo;
+    out->tag_hi = tag_hi | ((uint32_t)(first & 0xE0u) << 24u);
+
+    len_first = *ptr++;
+    remaining = available - 1u;
+    if ((len_first & 0x80u) != 0u) {
+        uint32_t count = (uint32_t)(len_first & 0x7Fu);
+        uint32_t value_len = 0u;
+        uint32_t i;
+
+        if (count > 4u || count > remaining || count == 0u || *ptr == 0u)
+            return 3;
+        for (i = 0u; i < count; i++)
+            value_len = (value_len << 8u) | ptr[i];
+        ptr += count;
+        remaining -= count;
+        if (value_len < 0x80u)
+            return 3;
+        if (value_len > remaining && declared_len_out == NULL)
+            return 3;
+        if (value_len < remaining)
+            remaining = value_len;
+        out->value_ptr = (uint32_t)(uintptr_t)ptr;
+        out->value_len = remaining;
+        if (declared_len_out != NULL)
+            *declared_len_out = value_len;
+        return 0;
+    }
+
+    if ((uint32_t)len_first > remaining && declared_len_out == NULL)
+        return 3;
+    if ((uint32_t)len_first < remaining)
+        remaining = (uint32_t)len_first;
+    out->value_ptr = (uint32_t)(uintptr_t)ptr;
+    out->value_len = remaining;
+    if (declared_len_out != NULL)
+        *declared_len_out = (uint32_t)len_first;
+    return 0;
+}
+
+static int rom_pair_to_range(const uint32_t *pair, struct rom_range32 *out)
+{
+    if (pair == NULL || out == NULL)
+        return 6;
+    out->start = pair[0];
+    out->end = pair[0] + pair[1];
+    return 0;
+}
+
+static int rom_range_next(struct rom_range32 *range, struct rom_tlv_desc *out)
+{
+    uint32_t pair[2];
+    int rc;
+
+    if (range == NULL || out == NULL)
+        return 6;
+    if (range->start >= range->end)
+        return 1;
+
+    pair[0] = range->start;
+    pair[1] = range->end - range->start;
+    rc = rom_parse_tlv_pair(pair, out, NULL);
+    if (rc != 0)
+        return rc;
+    range->start = out->value_ptr + out->value_len;
+    return 0;
+}
+
+static int rom_parse_small_u32(const uint32_t *pair, uint32_t *out)
+{
+    const uint8_t *ptr;
+    uint32_t len;
+    uint64_t value = 0u;
+    uint32_t i;
+
+    if (pair == NULL)
+        return 6;
+    ptr = (const uint8_t *)(uintptr_t)pair[0];
+    len = pair[1];
+    if (len == 0u)
+        return 3;
+    if ((ptr[0] & 0x80u) != 0u)
+        return 3;
+    if (ptr[0] != 0u) {
+        if (len > 8u)
+            return 7;
+    } else {
+        if (len > 1u && (ptr[1] & 0x80u) == 0u)
+            return 3;
+        if (len > 9u)
+            return 7;
+    }
+    for (i = 0u; i < len; i++)
+        value = (value << 8u) | ptr[i];
+    if ((value >> 32u) != 0u)
+        return 7;
+    if (out != NULL)
+        *out = (uint32_t)value;
+    return 0;
+}
+
+static int rom_check_magic4_pair(const uint32_t *pair, uint32_t expected_tag)
+{
+    const uint8_t *bytes;
+
+    if (pair == NULL)
+        return 6;
+    if (pair[1] != 4u)
+        return 2;
+    bytes = (const uint8_t *)(uintptr_t)pair[0];
+    if (bytes[0] != (uint8_t)(expected_tag >> 24u))
+        return 2;
+    if (bytes[1] != (uint8_t)(expected_tag >> 16u))
+        return 2;
+    if (bytes[2] != (uint8_t)(expected_tag >> 8u))
+        return 2;
+    if (bytes[3] != (uint8_t)expected_tag)
+        return 2;
+    return 0;
+}
+
+static bool rom_bytes_equal(uint32_t lhs_ptr, uint32_t lhs_len,
+                            uint32_t rhs_ptr, uint32_t rhs_len)
+{
+    const uint8_t *lhs;
+    const uint8_t *rhs;
+    uint32_t i;
+
+    if (lhs_len != rhs_len)
+        return false;
+    if (lhs_len == 0u)
+        return true;
+
+    lhs = (const uint8_t *)(uintptr_t)lhs_ptr;
+    rhs = (const uint8_t *)(uintptr_t)rhs_ptr;
+    for (i = 0u; i < lhs_len; i++) {
+        if (lhs[i] != rhs[i])
+            return false;
+    }
+    return true;
+}
+
+static int rom_parse_named_wrapper(const uint32_t *pair,
+                                   uint64_t expected_name,
+                                   struct rom_named_desc *out)
+{
+    struct rom_tlv_desc outer = {0u, 0u, 0u, 0u};
+    struct rom_tlv_desc child = {0u, 0u, 0u, 0u};
+    struct rom_tlv_desc extra = {0u, 0u, 0u, 0u};
+    struct rom_range32 range = {0u, 0u};
+    uint32_t name_pair[2];
+    uint32_t name_value = 0u;
+    int rc;
+
+    if (pair == NULL || out == NULL)
+        return 6;
+
+    out->name_ptr = 0u;
+    out->name_len = 0u;
+    out->reserved0 = 0u;
+    out->reserved1 = 0u;
+    out->child_value_ptr = 0u;
+    out->child_value_len = 0u;
+    out->child_tag_lo = 0u;
+    out->child_tag_hi = 0u;
+
+    rc = rom_parse_tlv_pair(pair, &outer, NULL);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&outer) != ROM_TAG64_SEQUENCE)
+        return 2;
+
+    rc = rom_pair_to_range(&outer.value_ptr, &range);
+    if (rc != 0)
+        return rc;
+
+    rc = rom_range_next(&range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != ROM_TAG64_IA5STRING)
+        return 2;
+
+    name_pair[0] = child.value_ptr;
+    name_pair[1] = child.value_len;
+    rc = rom_parse_small_u32(name_pair, &name_value);
+    if (rc != 0)
+        return rc;
+    if (expected_name != rom_make_app_tag64_u32(name_value))
+        return 2;
+
+    out->name_ptr = child.value_ptr;
+    out->name_len = child.value_len;
+
+    rc = rom_range_next(&range, &child);
+    if (rc != 0)
+        return rc;
+    out->child_value_ptr = child.value_ptr;
+    out->child_value_len = child.value_len;
+    out->child_tag_lo = child.tag_lo;
+    out->child_tag_hi = child.tag_hi;
+
+    rc = rom_range_next(&range, &extra);
+    if (rc == 1) {
+        if ((outer.value_ptr + outer.value_len) == (pair[0] + pair[1]))
+            return 0;
+        return 7;
+    }
+    if (rc == 0)
+        return 2;
+    return rc;
+}
+
+
 /* =========================================================================
  * crypto_check_magic_4bytes — compare 4 bytes at `addr` against a 32-bit tag
  *
@@ -841,26 +1166,56 @@ uint8_t *asn1_parse_rsa_pubkey(uint8_t *ptr, int *key_struct)
 }
 
 /* =========================================================================
- * crypto_parse_pubkey_struct — parse and validate a full public-key struct
- *
- * Reads the CRTP -> PUBK blob wrapper and returns the raw key span.
+ * crypto_parse_pubkey_struct — parse the CRTP/PUBK public-key container
  * ====================================================================== */
-int crypto_parse_pubkey_struct(int cert_ptr, int cert_len, uint32_t *blob_ptr,
-                               uint32_t *blob_len)
+int crypto_parse_pubkey_struct(int cert_ptr, int cert_len,
+                               uint32_t *blob_ptr, uint32_t *blob_len)
 {
-    struct img4_blob_range blob;
+    struct rom_tlv_desc outer = {0u, 0u, 0u, 0u};
+    struct rom_tlv_desc child = {0u, 0u, 0u, 0u};
+    struct rom_range32 set_range = {0u, 0u};
+    uint32_t input_pair[2];
+    uint32_t child_pair[2];
+    int rc;
 
-    if (cert_ptr == 0 || cert_len <= 0)
+    input_pair[0] = (uint32_t)cert_ptr;
+    input_pair[1] = (uint32_t)cert_len;
+    if (cert_ptr == 0 || cert_len == 0)
         return 6;
-    if (img4_parse_pubkey_blob_range((uint8_t *)cert_ptr,
-                                     (uint8_t *)cert_ptr + cert_len,
-                                     &blob) < 0) {
-        return 2;
-    }
 
-    if (blob_ptr && blob_len) {
-        *blob_ptr = (uint32_t)(uintptr_t)blob.ptr;
-        *blob_len = (uint32_t)(blob.end - blob.ptr);
+    rc = rom_parse_tlv_pair(input_pair, &outer, NULL);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&outer) != ROM_TAG64_SET)
+        return 2;
+
+    rc = rom_pair_to_range(&outer.value_ptr, &set_range);
+    if (rc != 0)
+        return rc;
+
+    rc = rom_range_next(&set_range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != rom_make_app_tag64_u32(IMG4_TAG_CRTP))
+        return 2;
+
+    rc = rom_range_next(&set_range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != rom_make_app_tag64_u32(IMG4_TAG_PUBK))
+        return 2;
+
+    child_pair[0] = child.value_ptr;
+    child_pair[1] = child.value_len;
+    rc = rom_parse_tlv_pair(child_pair, &outer, NULL);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&outer) != ROM_TAG64_OCTETSTRING)
+        return 2;
+
+    if (blob_ptr != NULL && blob_len != NULL) {
+        *blob_ptr = outer.value_ptr;
+        *blob_len = outer.value_len;
     }
     return 0;
 }
@@ -1159,609 +1514,616 @@ int crypto_hw_accelerator_feed(uint32_t *out_buf, int flags,
 }
 
 /* =========================================================================
- * crypto_validate_block — verify a single HDCP / IMG4 data block
- *
- * Computes the expected hash of `len` bytes at `data_addr` and compares
- * it against the hash stored in `expected_hash`.
+ * crypto_validate_block — validate a top-level IMG4/HDCP hash block
  * ====================================================================== */
-int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
-                          uint32_t flags)
+int crypto_validate_block(int data_ptr, int data_len, int desc_ptr, int flags,
+                          uint32_t expected_name)
 {
-    const uint32_t *raw_desc = (const uint32_t *)(uintptr_t)hash_ptr;
+    const uint32_t *desc = (const uint32_t *)(uintptr_t)desc_ptr;
+    struct rom_tlv_desc set_desc = {0u, 0u, 0u, 0u};
+    struct rom_tlv_desc item_desc = {0u, 0u, 0u, 0u};
+    struct rom_tlv_desc seq_desc = {0u, 0u, 0u, 0u};
+    struct rom_range32 outer_range = {0u, 0u};
+    struct rom_range32 inner_range = {0u, 0u};
+    uint32_t input_pair[2];
+    uint32_t item_pair[2];
+    int have_manp = 0;
+    int have_alt = 0;
     uint32_t alt_tag;
-    int (*manifest_cb)(uint32_t, int, uint32_t, uint32_t, uint32_t *, uint32_t *, int);
-    int (*alt_cb)(uint32_t, int, uint32_t, uint32_t, uint32_t *, uint32_t *, int);
-    struct der_tlv64 outer_tlv;
-    struct der_tlv64 app_tlv;
-    struct der_tlv64 inner_tlv;
-    struct der_tlv64 name_tlv;
-    struct der_tlv64 list_tlv;
-    struct img4_blob_range list_range;
-    uint8_t expected_name[4];
-    uint8_t *cursor;
-    uint32_t seen_manb = 0u;
-    uint32_t seen_alt = 0u;
-    uint64_t expected_outer = img4_make_app_tag64_u32(flags);
+    int rc;
 
-    (void)unused;
-
-    if (hash_ptr == 0 || data_ptr == 0 || data_len <= 0)
+    if (data_ptr == 0 || data_len == 0)
         return 6;
-    alt_tag = raw_desc[5];
-    manifest_cb = (int (*)(uint32_t, int, uint32_t, uint32_t, uint32_t *, uint32_t *, int))(uintptr_t)raw_desc[2];
-    alt_cb = (int (*)(uint32_t, int, uint32_t, uint32_t, uint32_t *, uint32_t *, int))(uintptr_t)raw_desc[3];
-    expected_name[0] = (uint8_t)(flags >> 24u);
-    expected_name[1] = (uint8_t)(flags >> 16u);
-    expected_name[2] = (uint8_t)(flags >> 8u);
-    expected_name[3] = (uint8_t)flags;
 
-    cursor = (uint8_t *)(uintptr_t)data_ptr;
-    if (der_parse_expected64(&cursor, cursor + (uint32_t)data_len,
-                             0x2000000000000011ull, &outer_tlv) < 0) {
-        return -1;
-    }
-    if (cursor != outer_tlv.next)
+    input_pair[0] = (uint32_t)data_ptr;
+    input_pair[1] = (uint32_t)data_len;
+    rc = rom_parse_tlv_pair(input_pair, &set_desc, NULL);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&set_desc) != ROM_TAG64_SET)
         return 2;
 
-    cursor = outer_tlv.value;
-    if (der_parse_expected64(&cursor, outer_tlv.next, expected_outer, &app_tlv) < 0)
-        return -1;
-    if (cursor != outer_tlv.next)
+    rc = rom_pair_to_range(&set_desc.value_ptr, &outer_range);
+    if (rc != 0)
+        return rc;
+
+    rc = rom_range_next(&outer_range, &item_desc);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&item_desc) != rom_make_app_tag64_u32(expected_name))
         return 2;
 
-    cursor = app_tlv.value;
-    if (der_parse_expected64(&cursor, app_tlv.next, 0x2000000000000010ull,
-                             &inner_tlv) < 0) {
-        return -1;
-    }
-    if (cursor != app_tlv.next)
+    item_pair[0] = item_desc.value_ptr;
+    item_pair[1] = item_desc.value_len;
+    rc = rom_parse_tlv_pair(item_pair, &seq_desc, NULL);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&seq_desc) != ROM_TAG64_SEQUENCE)
         return 2;
 
-    cursor = inner_tlv.value;
-    if (der_parse_expected64(&cursor, inner_tlv.next, 22ull, &name_tlv) < 0)
-        return -1;
-    if (name_tlv.len != 4u || memcmp_custom(name_tlv.value, expected_name, 4u) != 0)
-        return 2;
-    if (der_parse_expected64(&cursor, inner_tlv.next, 0x2000000000000011ull,
-                             &list_tlv) < 0) {
-        return -1;
-    }
-    if (cursor != inner_tlv.next)
-        return 2;
-    if (img4_range_from_tlv(&list_tlv, &list_range) < 0)
-        return -1;
+    rc = rom_pair_to_range(&seq_desc.value_ptr, &inner_range);
+    if (rc != 0)
+        return rc;
 
-    while (list_range.ptr < list_range.end) {
-        struct der_tlv64 item_tlv;
-        struct img4_named_pair item_pair;
-        struct der_tlv64 item_payload;
-        uint32_t list_desc[2];
-        uint64_t item_name = 0ull;
-        struct img4_blob_range item_range;
-        uint32_t item_magic;
+    rc = rom_range_next(&inner_range, &item_desc);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&item_desc) != ROM_TAG64_IA5STRING)
+        return 2;
+    item_pair[0] = item_desc.value_ptr;
+    item_pair[1] = item_desc.value_len;
+    if (rom_check_magic4_pair(item_pair, expected_name) != 0)
+        return 2;
 
-        item_range = list_range;
-        if (img4_range_next(&list_range, &item_tlv) < 0)
-            return -1;
-        if (img4_parse_named_pair64(item_range.ptr,
-                                    (uint32_t)(item_tlv.next - item_range.ptr),
-                                    0ull, &item_name, &item_pair,
-                                    &item_payload) < 0) {
-            return -1;
-        }
-        if (item_payload.tag != 0x2000000000000011ull)
-            return 2;
-        item_magic = (uint32_t)item_name;
-        list_desc[0] = (uint32_t)(uintptr_t)list_tlv.value;
-        list_desc[1] = list_tlv.len;
-        if (item_magic == IMG4_TAG_MANP) {
-            if (seen_manb != 0u)
+    rc = rom_range_next(&inner_range, &item_desc);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&item_desc) != ROM_TAG64_SET)
+        return 2;
+
+    rc = rom_pair_to_range(&item_desc.value_ptr, &inner_range);
+    if (rc != 0)
+        return rc;
+
+    alt_tag = desc[5];
+    while (1) {
+        rc = rom_range_next(&inner_range, &item_desc);
+        if (rc == 1)
+            return 0;
+        if (rc != 0)
+            return rc;
+
+        item_pair[0] = item_desc.value_ptr;
+        item_pair[1] = item_desc.value_len;
+        if (item_desc.tag_lo == IMG4_TAG_MANP) {
+            if (have_manp)
                 return 2;
-            seen_manb = 1u;
-            if (manifest_cb == NULL)
-                return 6;
-            {
-                int rc = crypto_verify_payload_hash(list_desc, -(int)IMG4_TAG_MANP,
-                                                    (int64_t)item_tlv.tag,
-                                                    manifest_cb, unused);
-                if (rc != 0)
-                    return rc;
-            }
-        } else if (item_magic == alt_tag) {
-            if (seen_alt != 0u)
-                return 2;
-            seen_alt = 1u;
-            if (alt_cb == NULL)
-                return 6;
-            {
-                int rc = crypto_verify_payload_hash(list_desc,
-                                                    (int)alt_tag,
-                                                    (int64_t)item_tlv.tag,
-                                                    alt_cb,
-                                                    unused);
-                if (rc != 0)
-                    return rc;
-            }
-        } else {
-            return 2;
+            have_manp = 1;
+            rc = crypto_verify_payload_hash(
+                item_pair,
+                -(int)IMG4_TAG_MANP,
+                (int64_t)rom_tlv_desc_tag64(&item_desc),
+                (img4_validator_callback_t)(uintptr_t)desc[2],
+                flags);
+            if (rc != 0)
+                return rc;
+            continue;
         }
+        if (item_desc.tag_lo != alt_tag)
+            return 2;
+        if (have_alt)
+            return 2;
+        have_alt = 1;
+        rc = crypto_verify_payload_hash(
+            item_pair,
+            (int)alt_tag,
+            (int64_t)rom_tlv_desc_tag64(&item_desc),
+            (img4_validator_callback_t)(uintptr_t)desc[3],
+            flags);
+        if (rc != 0)
+            return rc;
     }
-
-    if (list_range.ptr != list_range.end)
-        return 2;
-    return 0;
 }
 
 /* =========================================================================
- * crypto_verify_payload_hash — verify an IM4M payload hash
- *
- * Iterates over the list of payload hashes in the manifest and verifies
- * each one using the hash callback `hash_fn`.
+ * crypto_verify_payload_hash — validate a manifest payload wrapper
  * ====================================================================== */
 int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
                                int (*hash_fn)(uint32_t, int, uint32_t,
                                               uint32_t, uint32_t *, uint32_t *, int),
                                int flags)
 {
-    struct img4_named_pair outer_pair;
-    struct der_tlv64 outer_set_tlv;
-    struct img4_blob_range walk;
-    uint64_t outer_name = 0ull;
-    uint64_t expected_outer = range | 0xE000000000000000ull;
+    struct rom_named_desc wrapper = {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u};
+    struct rom_tlv_desc item_desc = {0u, 0u, 0u, 0u};
+    struct rom_range32 item_range = {0u, 0u};
+    uint32_t raw_child_pair[2];
+    uint32_t expected_pair[2];
+    int rc;
 
-    (void)flags;
+    (void)offset;
 
     if (hash_fn == NULL)
         return 6;
-    if (manifest == NULL)
-        return 6;
 
-    walk.ptr = (uint8_t *)(uintptr_t)manifest[0];
-    walk.end = walk.ptr + manifest[1];
-    if (walk.ptr == NULL || walk.end == NULL || walk.ptr > walk.end)
+    rc = rom_parse_named_wrapper(manifest,
+                                 ((uint64_t)range) | 0xE000000000000000ull,
+                                 &wrapper);
+    if (rc != 0)
+        return rc;
+    if (rom_named_child_tag64(&wrapper) != ROM_TAG64_SET)
         return 2;
 
-    if (img4_parse_named_pair64(walk.ptr, (uint32_t)(walk.end - walk.ptr),
-                                expected_outer, &outer_name, &outer_pair,
-                                &outer_set_tlv) < 0) {
-        return -1;
-    }
-    if (outer_set_tlv.tag != 0x2000000000000011ull)
-        return 2;
-    if (img4_range_from_tlv(&outer_set_tlv, &walk) < 0)
-        return -1;
-
-    while (walk.ptr < walk.end) {
-        struct der_tlv64 tlv;
-        struct img4_named_pair pair;
-        struct der_tlv64 payload_tlv;
-        uint64_t payload_name = 0ull;
-        uint32_t parent_pair[2];
-        uint32_t child_pair[2];
-        uint8_t expected_name[8];
-        uint32_t expected_name_len;
-        uint32_t magic;
-        uint32_t type;
-        uint64_t payload_tag;
-
-        if (img4_range_next(&walk, &tlv) < 0)
-            return -1;
-        if (img4_parse_named_pair64(tlv.value,
-                                    tlv.len,
-                                    tlv.tag,
-                                    NULL, &pair, &payload_tlv) < 0) {
-            return -1;
-        }
-        payload_tag = payload_tlv.tag;
-        if (!img4_check_magic_tag((int64_t)payload_tag))
-            return 2;
-        if ((tlv.tag & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
-            return 2;
-
-        expected_name_len = 0u;
-        if ((tlv.tag & 0xFFFFFFFF00000000ull) == 0xE000000000000000ull) {
-            uint64_t raw_name = tlv.tag & 0x00000000FFFFFFFFull;
-
-            expected_name[expected_name_len++] = (uint8_t)(raw_name >> 24u);
-            expected_name[expected_name_len++] = (uint8_t)(raw_name >> 16u);
-            expected_name[expected_name_len++] = (uint8_t)(raw_name >> 8u);
-            expected_name[expected_name_len++] = (uint8_t)raw_name;
-        }
-        if (pair.first_ptr == NULL || pair.first_len == 0u || pair.first_len > sizeof(expected_name))
-            return 2;
-        if (pair.first_len != expected_name_len ||
-            memcmp_custom(pair.first_ptr, expected_name, expected_name_len) != 0) {
-            return 2;
-        }
-        payload_name = img4_tag64_name_from_bytes(pair.first_ptr, pair.first_len);
-        if (payload_name == 0ull)
-            return 2;
-
-        parent_pair[0] = (uint32_t)(uintptr_t)outer_pair.second_ptr;
-        parent_pair[1] = outer_pair.second_len;
-        child_pair[0] = (uint32_t)(uintptr_t)pair.second_ptr;
-        child_pair[1] = pair.second_len;
-        magic = (uint32_t)tlv.tag;
-        type = (uint32_t)(payload_tag >> 32u);
-        {
-            int rc = hash_fn((uint32_t)outer_name,
-                             (int)magic,
-                             (uint32_t)payload_tag,
-                             type,
-                             parent_pair,
-                             child_pair, flags);
-            if (rc != 0)
-                return rc;
-        }
-    }
-
-    return (walk.ptr == walk.end) ? 0 : -1;
-}
-
-/* =========================================================================
- * crypto_parse_cert_chain — IMG4 slicer wrapper
- * ====================================================================== */
-int crypto_parse_cert_chain(uint32_t ptr, uint32_t len,
-                               uint32_t *body_ptr, uint32_t *body_len,
-                               uint32_t *sig_ptr, uint32_t *sig_len,
-                               uint32_t *cert_ptr, uint32_t *cert_len,
-                               int expected_magic_ptr, uint32_t expected_magic_len,
-                               uint32_t *range_pair, uint32_t expected_name)
-{
-    struct img4_blob_range block_range;
-    uint32_t local_body_ptr = 0u;
-    uint32_t local_body_len = 0u;
-    uint32_t local_sig_ptr = 0u;
-    uint32_t local_sig_len = 0u;
-    uint32_t local_cert_ptr = 0u;
-    uint32_t local_cert_len = 0u;
-    uint8_t magic_bytes[4];
-
-    if (expected_magic_ptr == 0 || expected_magic_len != 4u)
-        return -1;
-    crypto_memcpy(magic_bytes, (const void *)(uintptr_t)expected_magic_ptr, 4u);
-
-    int rc = img4_parse_cert_chain_core(ptr, len,
-                                   &local_body_ptr, &local_body_len,
-                                   &local_sig_ptr, &local_sig_len,
-                                   &local_cert_ptr, &local_cert_len,
-                                   &block_range,
-                                   magic_bytes,
-                                   expected_name);
+    rc = rom_pair_to_range(rom_named_child_pair(&wrapper), &item_range);
     if (rc != 0)
         return rc;
 
-    if (body_ptr)
-        *body_ptr = local_body_ptr;
-    if (body_len)
-        *body_len = local_body_len;
-    if (sig_ptr)
-        *sig_ptr = local_sig_ptr;
-    if (sig_len)
-        *sig_len = local_sig_len;
-    if (cert_ptr)
-        *cert_ptr = local_cert_ptr;
-    if (cert_len)
-        *cert_len = local_cert_len;
-    if (range_pair) {
-        range_pair[0] = (uint32_t)(uintptr_t)block_range.ptr;
-        range_pair[1] = (uint32_t)(block_range.end - block_range.ptr);
+    while (1) {
+        rc = rom_range_next(&item_range, &item_desc);
+        if (rc == 1)
+            return 0;
+        if (rc != 0)
+            return rc;
+
+        raw_child_pair[0] = item_desc.value_ptr;
+        raw_child_pair[1] = item_desc.value_len;
+        rc = rom_parse_named_wrapper(raw_child_pair,
+                                     rom_tlv_desc_tag64(&item_desc),
+                                     &wrapper);
+        if (rc != 0)
+            return rc;
+        if (!img4_check_magic_tag((int64_t)rom_named_child_tag64(&wrapper)))
+            return 2;
+        if (item_desc.tag_hi != 0xE0000000u)
+            return 2;
+
+        expected_pair[0] = wrapper.name_ptr;
+        expected_pair[1] = wrapper.name_len;
+        if (rom_check_magic4_pair(expected_pair, item_desc.tag_lo) != 0)
+            return 2;
+
+        rc = hash_fn((uint32_t)range,
+                     (int)item_desc.tag_lo,
+                     wrapper.child_tag_lo,
+                     wrapper.child_tag_hi,
+                     rom_named_child_pair(&wrapper),
+                     raw_child_pair,
+                     flags);
+        if (rc != 0)
+            return rc;
     }
-    return 0;
 }
 
 /* =========================================================================
- * img4_check_magic_tag — check whether a 64-bit value is a known IM4x tag
+ * crypto_parse_cert_chain — split an IM4M / IM4C object into body/signature
+ * ====================================================================== */
+int crypto_parse_cert_chain(uint32_t ptr, uint32_t len,
+                            uint32_t *body_ptr, uint32_t *body_len,
+                            uint32_t *sig_ptr, uint32_t *sig_len,
+                            uint32_t *cert_ptr, uint32_t *cert_len,
+                            int expected_magic_ptr, uint32_t expected_magic_len,
+                            uint32_t *range_pair, uint32_t expected_name)
+{
+    struct rom_tlv_desc outer = {0u, 0u, 0u, 0u};
+    struct rom_tlv_desc child = {0u, 0u, 0u, 0u};
+    struct rom_tlv_desc inner = {0u, 0u, 0u, 0u};
+    struct rom_range32 outer_range = {0u, 0u};
+    struct rom_range32 inner_range = {0u, 0u};
+    uint32_t input_pair[2];
+    uint32_t temp_pair[2];
+    uint8_t zero = 0u;
+    int rc = -1;
+
+    input_pair[0] = ptr;
+    input_pair[1] = len;
+    if (ptr == 0u || len == 0u)
+        return 6;
+
+    rc = rom_parse_tlv_pair(input_pair, &outer, NULL);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&outer) != ROM_TAG64_SEQUENCE)
+        return 2;
+
+    rc = rom_pair_to_range(&outer.value_ptr, &outer_range);
+    if (rc != 0)
+        return rc;
+    if (outer.value_len >= len)
+        return -1;
+    if (outer.value_ptr <= ptr)
+        return -1;
+    if ((outer.value_ptr - ptr) != (len - outer.value_len))
+        return 7;
+
+    rc = rom_range_next(&outer_range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != ROM_TAG64_IA5STRING)
+        return 2;
+
+    temp_pair[0] = child.value_ptr;
+    temp_pair[1] = child.value_len;
+    if (!rom_bytes_equal((uint32_t)expected_magic_ptr, expected_magic_len,
+                         temp_pair[0], temp_pair[1])) {
+        return 16;
+    }
+
+    rc = rom_range_next(&outer_range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != ROM_TAG64_INTEGER)
+        return 2;
+    if (!rom_bytes_equal((uint32_t)(uintptr_t)&zero, 1u,
+                         child.value_ptr, child.value_len)) {
+        return 15;
+    }
+
+    if (body_ptr != NULL && body_len != NULL) {
+        uint32_t raw_body_pair[2];
+        uint32_t raw_len = 0u;
+
+        raw_body_pair[0] = outer_range.start;
+        raw_body_pair[1] = outer_range.end - outer_range.start;
+        rc = rom_parse_tlv_pair(raw_body_pair, &child, &raw_len);
+        if (rc != 0)
+            return rc;
+        *body_ptr = raw_body_pair[0];
+        *body_len = (child.value_ptr + child.value_len) - raw_body_pair[0];
+    }
+
+    rc = rom_range_next(&outer_range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != ROM_TAG64_SET)
+        return 2;
+
+    rc = rom_pair_to_range(&child.value_ptr, &inner_range);
+    if (rc != 0)
+        return rc;
+
+    rc = rom_range_next(&inner_range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != rom_make_app_tag64_u32(expected_name))
+        return 2;
+
+    temp_pair[0] = child.value_ptr;
+    temp_pair[1] = child.value_len;
+    rc = rom_parse_tlv_pair(temp_pair, &inner, NULL);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&inner) != ROM_TAG64_SEQUENCE)
+        return 2;
+
+    rc = rom_pair_to_range(&inner.value_ptr, &inner_range);
+    if (rc != 0)
+        return rc;
+
+    rc = rom_range_next(&inner_range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != ROM_TAG64_IA5STRING)
+        return 2;
+
+    temp_pair[0] = child.value_ptr;
+    temp_pair[1] = child.value_len;
+    if (rom_check_magic4_pair(temp_pair, expected_name) != 0)
+        return 2;
+
+    rc = rom_range_next(&inner_range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != ROM_TAG64_SET)
+        return 2;
+    if (range_pair != NULL) {
+        range_pair[0] = child.value_ptr;
+        range_pair[1] = child.value_ptr + child.value_len;
+    }
+
+    rc = rom_range_next(&outer_range, &child);
+    if (rc != 0)
+        return rc;
+    if (rom_tlv_desc_tag64(&child) != ROM_TAG64_OCTETSTRING)
+        return 2;
+    if (sig_ptr != NULL && sig_len != NULL) {
+        *sig_ptr = child.value_ptr;
+        *sig_len = child.value_len;
+    }
+
+    if (cert_ptr != NULL) {
+        rc = rom_range_next(&outer_range, &child);
+        if (rc != 0)
+            return rc;
+        if (rom_tlv_desc_tag64(&child) != ROM_TAG64_SEQUENCE)
+            return 2;
+        if (cert_len != NULL) {
+            *cert_ptr = child.value_ptr;
+            *cert_len = child.value_len;
+        }
+    }
+
+    if ((child.value_ptr - ptr + child.value_len) == len)
+        return 0;
+    return 7;
+}
+
+/* =========================================================================
+ * img4_check_magic_tag — accept the ROM validator's small set of child tags
  * ====================================================================== */
 bool img4_check_magic_tag(int64_t tag)
 {
-    uint64_t utag = (uint64_t)tag;
+    uint32_t lo = (uint32_t)tag;
+    uint32_t hi = HIDWORD(tag);
 
-    return (utag == 1ull || utag == 2ull || utag == 4ull || utag == 22ull ||
-            utag == 0xA000000000000001ull);
+    if (tag == 4 || tag == 1 || tag == 2 || tag == 22)
+        return true;
+    if (((hi ^ 0xA0000000u) | lo) != 0u) {
+        hi ^= 0xA0000000u;
+        return rom_make_tag64(lo, hi) == 1ull;
+    }
+    return true;
 }
 
 /* =========================================================================
- * img4_parse_manifest_tags — compare the two manifest payload streams
+ * img4_parse_manifest_tags — compare the certificate and manifest tag sets
  * ====================================================================== */
 int img4_parse_manifest_tags(int desc_ptr,
                              const struct img4_blob_range *left_range,
                              const struct img4_blob_range *right_range)
 {
-    uint32_t alt_tag;
-    const uint32_t *raw_desc = (const uint32_t *)(uintptr_t)desc_ptr;
-    struct img4_blob_range left;
-    struct img4_blob_range right;
-    struct der_tlv64 tlv;
+    const uint32_t *desc = (const uint32_t *)(uintptr_t)desc_ptr;
+    struct rom_range32 left = {0u, 0u};
+    struct rom_range32 right = {0u, 0u};
+    struct rom_tlv_desc item_desc = {0u, 0u, 0u, 0u};
     uint32_t left_manp[2] = {0u, 0u};
     uint32_t left_alt[2] = {0u, 0u};
     uint32_t right_manp[2] = {0u, 0u};
     uint32_t right_alt[2] = {0u, 0u};
-    bool have_left_manp = false;
-    bool have_left_alt = false;
-    bool have_right_manp = false;
-    bool have_right_alt = false;
+    int have_left_manp = 0;
+    int have_left_alt = 0;
+    int have_right_manp = 0;
+    int have_right_alt = 0;
+    int rc = 0;
 
-    if (left_range == NULL || right_range == NULL)
-        return -1;
-    alt_tag = (desc_ptr != 0) ? raw_desc[5] : IMG4_TAG_OBJP;
+    left.start = (uint32_t)(uintptr_t)left_range->ptr;
+    left.end = (uint32_t)(uintptr_t)left_range->end;
+    right.start = (uint32_t)(uintptr_t)right_range->ptr;
+    right.end = (uint32_t)(uintptr_t)right_range->end;
 
-    left = *left_range;
-    right = *right_range;
-
-    while (left.ptr < left.end) {
-        if (img4_range_next(&left, &tlv) < 0)
-            return 2;
-        if ((uint32_t)tlv.tag == IMG4_TAG_MANP) {
+    do {
+        rc = rom_range_next(&left, &item_desc);
+        if (rc == 1)
+            break;
+        if (item_desc.tag_lo == IMG4_TAG_MANP) {
             if (have_left_manp)
                 return 2;
-            have_left_manp = true;
-            left_manp[0] = (uint32_t)(uintptr_t)tlv.value;
-            left_manp[1] = tlv.len;
-        } else if ((uint32_t)tlv.tag == IMG4_TAG_OBJP) {
+            have_left_manp = 1;
+            left_manp[0] = item_desc.value_ptr;
+            left_manp[1] = item_desc.value_len;
+        } else {
+            if (item_desc.tag_lo != IMG4_TAG_OBJP)
+                return 2;
             if (have_left_alt)
                 return 2;
-            have_left_alt = true;
-            left_alt[0] = (uint32_t)(uintptr_t)tlv.value;
-            left_alt[1] = tlv.len;
-        } else {
-            return 2;
+            have_left_alt = 1;
+            left_alt[0] = item_desc.value_ptr;
+            left_alt[1] = item_desc.value_len;
         }
-    }
+    } while (rc == 0);
 
-    while (right.ptr < right.end) {
-        if (img4_range_next(&right, &tlv) < 0)
-            return 2;
-        if ((uint32_t)tlv.tag == IMG4_TAG_MANP) {
+    do {
+        rc = rom_range_next(&right, &item_desc);
+        if (rc == 1)
+            break;
+        if (item_desc.tag_lo == IMG4_TAG_MANP) {
             if (have_right_manp)
                 return 2;
-            have_right_manp = true;
-            right_manp[0] = (uint32_t)(uintptr_t)tlv.value;
-            right_manp[1] = tlv.len;
-        } else if ((uint32_t)tlv.tag == alt_tag) {
+            have_right_manp = 1;
+            right_manp[0] = item_desc.value_ptr;
+            right_manp[1] = item_desc.value_len;
+        } else {
+            if (item_desc.tag_lo != desc[5])
+                return 2;
             if (have_right_alt)
                 return 2;
-            have_right_alt = true;
-            right_alt[0] = (uint32_t)(uintptr_t)tlv.value;
-            right_alt[1] = tlv.len;
-        } else {
-            return 2;
+            have_right_alt = 1;
+            right_alt[0] = item_desc.value_ptr;
+            right_alt[1] = item_desc.value_len;
         }
-    }
+    } while (rc == 0);
 
-    if (have_left_manp && !img4_validate_payload(left_manp, right_manp,
-                                                 (int64_t)IMG4_TAG_MANP,
-                                                 IMG4_TAG_MANP, 0)) {
+    if (left_manp[1] != 0u &&
+        !img4_validate_payload(left_manp, right_manp,
+                               (int64_t)IMG4_TAG_MANP,
+                               (int)IMG4_TAG_MANP,
+                               0)) {
         return 12;
     }
-    if (have_left_alt && !img4_validate_payload(left_alt, right_alt,
-                                                (int64_t)IMG4_TAG_OBJP,
-                                                (int)alt_tag, 0)) {
+    if (left_alt[1] != 0u &&
+        !img4_validate_payload(left_alt, right_alt,
+                               (int64_t)IMG4_TAG_OBJP,
+                               (int)desc[5],
+                               0)) {
         return 13;
     }
-
     return 0;
 }
 
 /* =========================================================================
- * img4_validate_payload — walk a named payload wrapper and validate children
+ * img4_validate_payload — validate one named manifest payload against peer
  * ====================================================================== */
 int img4_validate_payload(uint32_t *manifest_desc, uint32_t *payload_desc,
-                              int64_t range, int flags, int depth)
+                          int64_t range, int flags, int depth)
 {
-    struct img4_named_pair outer_pair;
-    struct der_tlv64 outer_set_tlv;
-    struct img4_blob_range walk;
-    uint64_t outer_name = 0ull;
-    uint64_t expected_name = img4_make_app_tag64_u32((uint32_t)range);
-    if (manifest_desc == NULL || payload_desc == NULL ||
-        manifest_desc[0] == 0u || manifest_desc[1] == 0u) {
+    struct rom_named_desc wrapper = {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u};
+    struct rom_tlv_desc item_desc = {0u, 0u, 0u, 0u};
+    struct rom_range32 item_range = {0u, 0u};
+    uint32_t child_pair[2];
+    int rc;
+
+    rc = rom_parse_named_wrapper(manifest_desc,
+                                 ((uint64_t)range) | 0xE000000000000000ull,
+                                 &wrapper);
+    if (rc != 0)
         return 0;
-    }
-    if (img4_parse_named_pair64((uint8_t *)(uintptr_t)manifest_desc[0],
-                                manifest_desc[1], expected_name,
-                                &outer_name, &outer_pair,
-                                &outer_set_tlv) < 0) {
-        return 0;
-    }
-    if (outer_name != expected_name || outer_set_tlv.tag != 0x2000000000000011ull)
-        return 0;
-    if (img4_range_from_tlv(&outer_set_tlv, &walk) < 0)
+    if (rom_named_child_tag64(&wrapper) != ROM_TAG64_SET)
         return 0;
 
-    while (walk.ptr < walk.end) {
-        struct der_tlv64 item_tlv;
-        struct img4_named_pair pair;
-        struct der_tlv64 child_tlv;
-        uint32_t compare_desc[2];
+    rc = rom_pair_to_range(rom_named_child_pair(&wrapper), &item_range);
+    if (rc != 0)
+        return 0;
 
-        if (img4_range_next(&walk, &item_tlv) < 0)
+    while (1) {
+        rc = rom_range_next(&item_range, &item_desc);
+        if (rc == 1)
+            return 1;
+        if (rc != 0)
             return 0;
-        if (img4_parse_named_pair64(item_tlv.value,
-                                    item_tlv.len,
-                                    item_tlv.tag,
-                                    NULL, &pair, &child_tlv) < 0) {
+
+        child_pair[0] = item_desc.value_ptr;
+        child_pair[1] = item_desc.value_len;
+        rc = rom_parse_named_wrapper(child_pair,
+                                     rom_tlv_desc_tag64(&item_desc),
+                                     &wrapper);
+        if (rc != 0)
             return 0;
-        }
-        if (!img4_check_magic_tag((int64_t)child_tlv.tag))
+        if (!img4_check_magic_tag((int64_t)rom_named_child_tag64(&wrapper)))
             return 0;
-        if ((item_tlv.tag & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
+        if (item_desc.tag_hi != 0xE0000000u)
             return 0;
-        compare_desc[0] = (uint32_t)(uintptr_t)pair.second_ptr;
-        compare_desc[1] = pair.second_len;
         if (!hdcp_crypto_validate_loop(flags,
                                        depth,
-                                       (int)(uint32_t)item_tlv.tag,
-                                       (int)(uint32_t)(item_tlv.tag >> 32u),
-                                       (int64_t)child_tlv.tag,
-                                       (int *)compare_desc, payload_desc)) {
+                                       (int)item_desc.tag_lo,
+                                       (int)item_desc.tag_hi,
+                                       (int64_t)rom_named_child_tag64(&wrapper),
+                                       (int *)rom_named_child_pair(&wrapper),
+                                       payload_desc)) {
             return 0;
         }
     }
-
-    return (walk.ptr == walk.end) ? 1 : 0;
 }
 
 /* =========================================================================
- * img4_parse_im4m_im4c — top-level IMG4 manifest parser
- *
- * Entry point called from crypto_init_and_parse_im4m() and
- * flash_verify_firmware_signature().
- *
- * Parameters:
- *   addr         flash address of the IM4M structure
- *   size         size of the IM4M structure in bytes
- *   p1..p12      output parameters for parsed fields
- *   cert         flash address of the certificate blob (IM4C)
- *   tags         flash address of extra tag data
- *
- * Returns 0 on success, negative on parse/validation failure.
+ * img4_parse_im4m_im4c — top-level IM4M / IM4C validator
  * ====================================================================== */
 int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
-                           uint32_t *p1,  int *p2,
-                           uint32_t *p3,  uint32_t *p4,
-                           uint32_t *p5,  uint32_t *p6,
-                           int *p7,       int *p8,
-                           uint32_t *p9,  uint32_t *p10,
-                           int cert_ptr,  int tag_ptr)
+                         uint32_t *p1,  int *p2,
+                         uint32_t *p3,  uint32_t *p4,
+                         uint32_t *p5,  uint32_t *p6,
+                         int *p7,       int *p8,
+                         uint32_t *p9,  uint32_t *p10,
+                         int cert_ptr,  int tag_ptr)
 {
-    const struct img4_parser_descriptor *desc;
-    const uint32_t *raw_desc = NULL;
-    int raw_desc_ptr = 0;
-    struct der_tlv64 top_tlv;
-    uint8_t *top_cursor;
+    const uint32_t *desc;
+    const uint32_t *anchor;
+    struct rom_tlv_desc top_desc = {0u, 0u, 0u, 0u};
+    uint32_t top_pair[2];
+    uint32_t declared_len = 0u;
     uint32_t trimmed_size;
-    struct img4_blob_range cert_block;
-    struct img4_blob_range manifest_block;
-    struct img4_blob_range pubkey_blob;
+    uint32_t manifest_block[2] = {0u, 0u};
+    uint32_t cert_block[2] = {0u, 0u};
+    uint32_t fallback_anchor[3] = {0u, 268752u, 398u};
     uint32_t manifest_body_ptr = 0u;
-    uint32_t manifest_body_len = 0u;
     uint32_t manifest_sig_ptr = 0u;
-    uint32_t manifest_sig_len = 0u;
-    uint32_t im4c_ptr = 0u;
-    uint32_t im4c_len = 0u;
-    uint32_t cert_body_ptr = 0u;
-    uint32_t cert_body_len = 0u;
     uint32_t cert_sig_ptr = 0u;
     uint32_t cert_sig_len = 0u;
-    uint32_t manifest_pair[2] = {0u, 0u};
-    uint32_t cert_pair[2] = {0u, 0u};
     uint32_t pubkey_blob_ptr = 0u;
     uint32_t pubkey_blob_len = 0u;
-    uint32_t trust_blob_ptr = 0u;
-    uint32_t trust_blob_len = 0u;
-    uint8_t im4m_magic[4] = { 'I', 'M', '4', 'M' };
-    uint8_t im4c_magic[4] = { 'I', 'M', '4', 'C' };
+    int manifest_body_len = 0;
+    int cert_body_ptr = 0;
+    int cert_body_len = 0;
+    int rc = -1;
+    static const uint8_t img4_magic[8] = {'I', 'M', '4', 'M', 'I', 'M', '4', 'C'};
 
-    if (addr == 0u || size == 0u || cert_ptr == 0 || tag_ptr == 0 ||
-        p1 == NULL || p2 == NULL || p3 == NULL || p4 == NULL ||
-        p5 == NULL || p6 == NULL || p7 == NULL || p8 == NULL ||
-        p9 == NULL || p10 == NULL) {
+    if (addr == 0u || size == 0u || p1 == NULL || p2 == NULL || p3 == NULL ||
+        p4 == NULL || p5 == NULL || p6 == NULL || p7 == NULL || p8 == NULL ||
+        p9 == NULL || p10 == NULL || cert_ptr == 0) {
         return -1;
     }
 
-    if (tag_ptr != 0) {
-        const uint32_t *anchor_pair = (const uint32_t *)((uintptr_t)tag_ptr + 4u);
-
-        raw_desc_ptr = cert_ptr;
-        raw_desc = (const uint32_t *)(uintptr_t)raw_desc_ptr;
-        desc = img4_get_descriptor(cert_ptr, IMG4_TAG_OBJP,
-                                   anchor_pair[0], anchor_pair[1]);
-    } else {
-        desc = img4_get_descriptor(0, IMG4_TAG_OBJP,
-                                   (uint32_t)cert_ptr, HDCP_CERT_LEN);
-    }
-    if (desc == NULL || desc->trust_anchor_ptr == 0u || desc->trust_anchor_len == 0u)
+    desc = (const uint32_t *)(uintptr_t)cert_ptr;
+    anchor = (tag_ptr != 0) ? (const uint32_t *)(uintptr_t)tag_ptr : fallback_anchor;
+    if (desc[1] == 0u || desc[2] == 0u || anchor[1] == 0u || anchor[2] == 0u)
         return -1;
 
-    top_cursor = (uint8_t *)(uintptr_t)addr;
-    if (der_parse_tlv64(&top_cursor, top_cursor + size, &top_tlv) < 0)
-        return 7;
-    trimmed_size = (uint32_t)(top_tlv.next - (uint8_t *)(uintptr_t)addr);
+    top_pair[0] = addr;
+    top_pair[1] = size;
+    rc = rom_parse_tlv_pair(top_pair, &top_desc, &declared_len);
+    if (rc != 0)
+        return rc;
+
+    trimmed_size = (top_desc.value_ptr - addr) + declared_len;
     if (trimmed_size > size)
         return 7;
 
-    if (crypto_parse_cert_chain(addr, trimmed_size,
-                                &manifest_body_ptr, &manifest_body_len,
-                                &manifest_sig_ptr, &manifest_sig_len,
-                                &im4c_ptr, &im4c_len,
-                                (int)(uintptr_t)im4m_magic, 4u,
-                                manifest_pair, IMG4_TAG_MANB) < 0) {
+    rc = crypto_parse_cert_chain(addr, trimmed_size,
+                                 &manifest_body_ptr, (uint32_t *)p2,
+                                 p3, p4,
+                                 p5, p6,
+                                 (int)(uintptr_t)img4_magic, 4u,
+                                 manifest_block, IMG4_TAG_MANB);
+    if (rc != 0)
         return 8;
-    }
-    if (manifest_body_len == 0u || manifest_body_len > size ||
-        manifest_sig_len == 0u || manifest_sig_len > size ||
-        im4c_len == 0u || im4c_len > size ||
-        manifest_body_len + manifest_sig_len + im4c_len > trimmed_size) {
+
+    manifest_body_len = *p2;
+    manifest_sig_ptr = *p3;
+    if (manifest_body_len == 0 || (uint32_t)manifest_body_len > size ||
+        *p4 == 0u || *p4 > size ||
+        *p6 == 0u || *p6 > size ||
+        (uint32_t)manifest_body_len + *p4 + *p6 > trimmed_size) {
         return 7;
     }
-    manifest_block.ptr = (uint8_t *)(uintptr_t)manifest_pair[0];
-    manifest_block.end = manifest_block.ptr + manifest_pair[1];
 
-    if (crypto_parse_cert_chain(im4c_ptr, im4c_len,
-                                &cert_body_ptr, &cert_body_len,
-                                &cert_sig_ptr, &cert_sig_len,
-                                NULL, NULL,
-                                (int)(uintptr_t)im4c_magic, 4u,
-                                cert_pair, IMG4_TAG_CRTP) < 0) {
+    rc = crypto_parse_cert_chain(*p5, *p6,
+                                 (uint32_t *)p7, (uint32_t *)p8,
+                                 p9, p10,
+                                 NULL, NULL,
+                                 (int)(uintptr_t)(img4_magic + 4), 4u,
+                                 cert_block, IMG4_TAG_CRTP);
+    if (rc != 0)
         return 9;
-    }
-    if (cert_body_len == 0u || cert_body_len > size ||
+
+    cert_body_ptr = *p7;
+    cert_body_len = *p8;
+    cert_sig_ptr = *p9;
+    cert_sig_len = *p10;
+    if (cert_body_len == 0 || (uint32_t)cert_body_len > size ||
         cert_sig_len == 0u || cert_sig_len > size ||
-        cert_body_len + cert_sig_len > im4c_len) {
+        (uint32_t)cert_body_len + cert_sig_len > *p6) {
         return 7;
     }
-    cert_block.ptr = (uint8_t *)(uintptr_t)cert_pair[0];
-    cert_block.end = cert_block.ptr + cert_pair[1];
 
-    if (crypto_parse_pubkey_struct((int)(uintptr_t)cert_block.ptr,
-                                   (int)(cert_block.end - cert_block.ptr),
-                                   &pubkey_blob_ptr, &pubkey_blob_len) != 0) {
+    rc = ((int (*)(uint32_t))(uintptr_t)desc[1])(anchor[1]);
+    if (rc != 0)
+        return rc;
+
+    rc = crypto_parse_pubkey_struct(cert_body_ptr, cert_body_len,
+                                    &pubkey_blob_ptr, &pubkey_blob_len);
+    if (rc != 0)
         return 11;
-    }
-    if (raw_desc != NULL && raw_desc[1] != 0u) {
-        int (*init_cb)(uint32_t) = (int (*)(uint32_t))(uintptr_t)raw_desc[1];
-        int (*verify_cb)(int, int, uint32_t, uint32_t) =
-            (int (*)(int, int, uint32_t, uint32_t))(uintptr_t)raw_desc[1];
-        int hook_rc;
 
-        hook_rc = init_cb(desc->trust_anchor_ptr);
-        if (hook_rc != 0)
-            return hook_rc;
-        hook_rc = verify_cb((int)pubkey_blob_ptr, (int)pubkey_blob_len,
-                            manifest_sig_ptr, manifest_sig_len);
-        if (hook_rc != 0)
-            return 10;
-    } else {
-        if (crypto_parse_pubkey_struct((int)desc->trust_anchor_ptr,
-                                       (int)desc->trust_anchor_len,
-                                       &trust_blob_ptr, &trust_blob_len) != 0) {
-            return -1;
-        }
-        if (trust_blob_ptr == 0u || trust_blob_len == 0u)
-            return -1;
+    rc = ((int (*)(int, int, uint32_t, uint32_t))(uintptr_t)desc[1])(
+            (int)pubkey_blob_ptr, (int)pubkey_blob_len, manifest_sig_ptr, *p4);
+    if (rc != 0)
+        return 10;
+
+    if (REG_BOOT_FLAGS == 1u) {
+        rc = img4_parse_manifest_tags(cert_ptr,
+                                      (const struct img4_blob_range *)(const void *)cert_block,
+                                      (const struct img4_blob_range *)(const void *)manifest_block);
+        if (rc != 0)
+            return rc;
     }
-    pubkey_blob.ptr = (uint8_t *)(uintptr_t)pubkey_blob_ptr;
-    pubkey_blob.end = pubkey_blob.ptr + pubkey_blob_len;
-    if (REG_BOOT_FLAGS == 1u &&
-        img4_parse_manifest_tags(raw_desc_ptr, &cert_block, &manifest_block) != 0) {
-        return -1;
-    }
-    if (crypto_validate_block(raw_desc_ptr, (int)manifest_body_ptr, 0,
-                              (int)manifest_body_len, IMG4_TAG_MANB) < 0) {
+
+    rc = crypto_validate_block(manifest_body_ptr, manifest_body_len,
+                               cert_ptr, 0, IMG4_TAG_MANB);
+    if (rc != 0)
         return 14;
-    }
 
-    if (p1) *p1 = manifest_body_ptr;
-    if (p2) *p2 = (int)manifest_body_len;
-    if (p3) *p3 = manifest_sig_ptr;
-    if (p4) *p4 = manifest_sig_len;
-    if (p5) *p5 = im4c_ptr;
-    if (p6) *p6 = im4c_len;
-    if (p7) *p7 = (int)cert_body_ptr;
-    if (p8) *p8 = (int)cert_body_len;
-    if (p9) *p9 = cert_sig_ptr;
-    if (p10) *p10 = cert_sig_len;
+    *p1 = manifest_body_ptr;
+    *p7 = cert_body_ptr;
+    *p8 = cert_body_len;
+    *p9 = cert_sig_ptr;
+    *p10 = cert_sig_len;
     return 0;
 }
 
@@ -1808,88 +2170,84 @@ int crypto_hw_verify_signature(uint8_t *pubkey_ptr, int pubkey_len,
 }
 
 /* =========================================================================
- * hdcp_crypto_validate_loop — validate HDCP receiver certificate chain
- *
- * Iterates over each certificate in the chain, verifying the RSA signature
- * of each certificate against its parent's public key.  The root key is
- * the DCP LLC public key baked into ROM.
- *
- * Returns true if the chain is valid, false otherwise.
+ * hdcp_crypto_validate_loop — match one validator item against a peer block
  * ====================================================================== */
 bool hdcp_crypto_validate_loop(int cert_ptr, int cert_len, int depth,
-                                    int max_depth, int64_t root_key,
-                                    int *result_ptr, uint32_t *key_out)
+                               int max_depth, int64_t root_key,
+                               int *result_ptr, uint32_t *key_out)
 {
-    const uint32_t *desc = key_out;
-    struct img4_named_pair outer_pair;
-    struct der_tlv64 outer_set_tlv;
-    struct img4_blob_range walk;
-    uint64_t expected_outer = ((uint64_t)((uint32_t)cert_len | 0xE0000000u) << 32u)
-                            | (uint32_t)cert_ptr;
-    uint64_t outer_name = 0ull;
-    bool sentinel = ((uint64_t)root_key == 0xA000000000000001ull);
-    bool has_root = ((uint64_t)root_key != 0ull) &&
-                    ((uint64_t)root_key != 0xA000000000000000ull) &&
-                    !sentinel;
+    struct rom_named_desc wrapper = {0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u};
+    struct rom_tlv_desc item_desc = {0u, 0u, 0u, 0u};
+    struct rom_range32 item_range = {0u, 0u};
+    uint32_t child_pair[2];
+    uint64_t expected_outer;
+    uint32_t root_lo = (uint32_t)root_key;
+    uint32_t root_hi = HIDWORD(root_key);
+    bool compare_required = false;
     bool found = false;
+    bool result = false;
+    int rc;
 
     (void)max_depth;
 
-    if (desc == NULL)
-        return sentinel;
-    if (desc[1] == 0u)
-        return sentinel;
-    if (has_root) {
+    if ((uint64_t)root_key != ROM_TAG64_CONTEXT1)
+        compare_required = ((root_lo | (root_hi ^ 0xA0000000u)) != 0u);
+    if (compare_required)
         crypto_validation_stub();
-    }
-    if (img4_parse_named_pair64((uint8_t *)(uintptr_t)desc[0], desc[1],
-                                expected_outer, &outer_name,
-                                &outer_pair, &outer_set_tlv) < 0) {
-        return false;
-    }
-    if (outer_name != expected_outer || outer_set_tlv.tag != 0x2000000000000011ull)
-        return false;
-    if (img4_range_from_tlv(&outer_set_tlv, &walk) < 0)
-        return false;
 
-    while (walk.ptr < walk.end) {
-        struct der_tlv64 item_tlv;
-        struct img4_named_pair pair;
-        struct der_tlv64 payload_tlv;
+    if (key_out == NULL || key_out[1] == 0u)
+        goto finish_normal;
 
-        if (img4_range_next(&walk, &item_tlv) < 0)
-            return false;
-        if (img4_parse_named_pair64(item_tlv.value,
-                                    item_tlv.len,
-                                    item_tlv.tag,
-                                    NULL, &pair, &payload_tlv) < 0) {
-            return false;
-        }
-        if (!img4_check_magic_tag((int64_t)payload_tlv.tag))
-            return false;
-        if ((item_tlv.tag & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
-            return false;
-        if ((uint32_t)item_tlv.tag != (uint32_t)depth)
+    expected_outer = rom_make_app_tag64_words((uint32_t)cert_ptr,
+                                              (uint32_t)cert_len);
+    rc = rom_parse_named_wrapper(key_out, expected_outer, &wrapper);
+    if (rc != 0)
+        goto finish_return;
+    if (rom_named_child_tag64(&wrapper) != ROM_TAG64_SET)
+        goto finish_return;
+
+    rc = rom_pair_to_range(rom_named_child_pair(&wrapper), &item_range);
+    if (rc != 0)
+        goto finish_return;
+
+    while (1) {
+        rc = rom_range_next(&item_range, &item_desc);
+        if (rc == 1)
+            goto finish_normal;
+        if (rc != 0)
+            goto finish_return;
+
+        child_pair[0] = item_desc.value_ptr;
+        child_pair[1] = item_desc.value_len;
+        rc = rom_parse_named_wrapper(child_pair,
+                                     rom_tlv_desc_tag64(&item_desc),
+                                     &wrapper);
+        if (rc != 0)
+            goto finish_return;
+        if (!img4_check_magic_tag((int64_t)rom_named_child_tag64(&wrapper)))
+            goto finish_return;
+        if (item_desc.tag_hi != 0xE0000000u)
+            goto finish_return;
+        if ((int)item_desc.tag_lo != depth)
             continue;
-        found = true;
-        if (sentinel) {
-            return false;
-        }
-        if (has_root) {
-            const uint32_t *cmp = (const uint32_t *)result_ptr;
 
-            if (cmp == NULL || cmp[0] == 0u)
-                return false;
-            if (pair.second_ptr == NULL || pair.second_len != cmp[1])
-                return false;
-            if (memcmp_custom(pair.second_ptr,
-                              (const uint8_t *)(uintptr_t)cmp[0], cmp[1]) != 0)
-                return false;
+        found = true;
+        if ((uint64_t)root_key == ROM_TAG64_CONTEXT1)
+            goto finish_return;
+        if (compare_required &&
+            !rom_bytes_equal(wrapper.child_value_ptr, wrapper.child_value_len,
+                             (uint32_t)result_ptr[0], (uint32_t)result_ptr[1])) {
+            goto finish_return;
         }
-        return true;
+        goto finish_normal;
     }
 
-    return sentinel || found;
+finish_return:
+    return result;
+
+finish_normal:
+    result = (((uint64_t)root_key == ROM_TAG64_CONTEXT1) || found);
+    return result;
 }
 
 /* =========================================================================
@@ -1901,7 +2259,7 @@ bool hdcp_crypto_validate_loop(int cert_ptr, int cert_len, int depth,
  * ====================================================================== */
 int crypto_validation_stub(void)
 {
-    return 0;
+    return (int)REG_TCB_CURRENT_TASK;
 }
 
 /* =========================================================================

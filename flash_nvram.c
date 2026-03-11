@@ -443,13 +443,17 @@ int flash_read_firmware_image(uint32_t src, uint32_t len, int dst, int flags)
 int flash_verify_firmware_signature(uint8_t *cert_blob, int cert_len,
                                     uint32_t img_addr)
 {
-    uint32_t p1=0, p3=0, p4=0, p5=0, p6=0, p9=0, p10=0;
-    int      p2=0, p7=0, p8=0;
+    uint32_t p1 = 0u, p3 = 0u, p4 = 0u, p5 = 0u, p6 = 0u, p9 = 0u, p10 = 0u;
+    uint32_t anchor_block[3] = {0u, 268752u, 398u};
+    int p2 = 0, p7 = 0, p8 = 0;
 
-    return img4_parse_im4m_im4c(img_addr, (uint32_t)cert_len,
-                                 &p1, &p2, &p3, &p4, &p5, &p6,
-                                 &p7, &p8, &p9, &p10,
-                                 (int)cert_blob, 0);
+    (void)cert_len;
+
+    return img4_parse_im4m_im4c(img_addr, FLASH_IMAGE_SIZE,
+                                &p1, &p2, &p3, &p4, &p5, &p6,
+                                &p7, &p8, &p9, &p10,
+                                (int)(uintptr_t)cert_blob,
+                                (int)(uintptr_t)anchor_block);
 }
 
 /* =========================================================================
