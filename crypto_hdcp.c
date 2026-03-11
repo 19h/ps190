@@ -759,8 +759,6 @@ static int img4_parse_pubkey_blob_range(uint8_t *ptr, uint8_t *end,
         pubk_tlv.tag != img4_make_app_tag64_u32(IMG4_TAG_PUBK)) {
         return -1;
     }
-    if (set_range.ptr != set_range.end)
-        return -1;
     blob_cursor = pubk_tlv.value;
     if (der_parse_tlv64(&blob_cursor, pubk_tlv.next, &blob_tlv) < 0)
         return -1;
@@ -1238,6 +1236,7 @@ int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
         struct der_tlv64 item_tlv;
         struct img4_named_pair item_pair;
         struct der_tlv64 item_payload;
+        uint32_t item_desc[2];
         uint64_t item_name = 0ull;
         struct img4_blob_range item_range;
         uint32_t item_magic;
@@ -1254,15 +1253,16 @@ int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
         if (item_payload.tag != 0x2000000000000011ull)
             return -1;
         item_magic = (uint32_t)item_name;
+        item_desc[0] = (uint32_t)(uintptr_t)item_tlv.value;
+        item_desc[1] = item_tlv.len;
         if (item_magic == IMG4_TAG_MANP) {
             if (seen_manb != 0u)
                 return -1;
             seen_manb = 1u;
             if (desc->manifest_cb == NULL)
                 return -1;
-            if (crypto_verify_payload_hash((uint32_t *)hash_ptr, -(int)IMG4_TAG_MANP,
-                                            ((int64_t)(uint32_t)(uintptr_t)item_range.ptr << 32u) |
-                                            (uint32_t)(uintptr_t)item_tlv.next,
+            if (crypto_verify_payload_hash(item_desc, -(int)IMG4_TAG_MANP,
+                                            (int64_t)item_tlv.tag,
                                             desc->manifest_cb, unused) < 0) {
                 return -1;
             }
@@ -1272,10 +1272,9 @@ int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
             seen_alt = 1u;
             if (desc->alt_cb == NULL)
                 return -1;
-            if (crypto_verify_payload_hash((uint32_t *)hash_ptr,
+            if (crypto_verify_payload_hash(item_desc,
                                             (int)desc->alt_payload_tag,
-                                            ((int64_t)(uint32_t)(uintptr_t)item_range.ptr << 32u) |
-                                            (uint32_t)(uintptr_t)item_tlv.next,
+                                            (int64_t)item_tlv.tag,
                                             desc->alt_cb,
                                             unused) < 0) {
                 return -1;
@@ -1305,18 +1304,17 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
     struct der_tlv64 outer_set_tlv;
     struct img4_blob_range walk;
     uint64_t outer_name = 0ull;
-    uint32_t selector = (offset < 0) ? (uint32_t)(-offset) : (uint32_t)offset;
-    uint64_t expected_outer = (offset != 0)
-                              ? img4_make_app_tag64_u32(selector)
-                              : 0ull;
+    uint64_t expected_outer = range | 0xE000000000000000ull;
 
     (void)flags;
 
-    if (manifest == NULL || hash_fn == NULL)
+    if (hash_fn == NULL)
+        return 6;
+    if (manifest == NULL)
         return -1;
 
-    walk.ptr = (uint8_t *)(uintptr_t)(uint32_t)(range >> 32u);
-    walk.end = (uint8_t *)(uintptr_t)(uint32_t)range;
+    walk.ptr = (uint8_t *)(uintptr_t)manifest[0];
+    walk.end = walk.ptr + manifest[1];
     if (walk.ptr == NULL || walk.end == NULL || walk.ptr > walk.end)
         return -1;
 
@@ -1331,11 +1329,9 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
         return -1;
 
     while (walk.ptr < walk.end) {
-        struct img4_blob_range item_range = walk;
         struct der_tlv64 tlv;
         struct img4_named_pair pair;
         struct der_tlv64 payload_tlv;
-        uint64_t name_tag = 0ull;
         uint64_t payload_name = 0ull;
         uint32_t parent_pair[2];
         uint32_t child_pair[2];
@@ -1347,23 +1343,21 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
 
         if (img4_range_next(&walk, &tlv) < 0)
             return -1;
-        if (tlv.tag != 0x2000000000000010ull)
-            return -1;
-
-        if (img4_parse_named_pair64(item_range.ptr,
-                                    (uint32_t)(tlv.next - item_range.ptr),
-                                    0ull, &name_tag, &pair, &payload_tlv) < 0) {
+        if (img4_parse_named_pair64(tlv.value,
+                                    tlv.len,
+                                    tlv.tag,
+                                    NULL, &pair, &payload_tlv) < 0) {
             return -1;
         }
         payload_tag = payload_tlv.tag;
         if (!img4_check_magic_tag((int64_t)payload_tag))
             return -1;
-        if ((name_tag & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
+        if ((tlv.tag & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
             return -1;
 
         expected_name_len = 0u;
-        if ((name_tag & 0xFFFFFFFF00000000ull) == 0xE000000000000000ull) {
-            uint64_t raw_name = name_tag & 0x00000000FFFFFFFFull;
+        if ((tlv.tag & 0xFFFFFFFF00000000ull) == 0xE000000000000000ull) {
+            uint64_t raw_name = tlv.tag & 0x00000000FFFFFFFFull;
 
             expected_name[expected_name_len++] = (uint8_t)(raw_name >> 24u);
             expected_name[expected_name_len++] = (uint8_t)(raw_name >> 16u);
@@ -1377,14 +1371,14 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
             return -1;
         }
         payload_name = img4_tag64_name_from_bytes(pair.first_ptr, pair.first_len);
-        if (payload_name != name_tag)
+        if (payload_name != tlv.tag)
             return -1;
 
         parent_pair[0] = (uint32_t)(uintptr_t)outer_pair.second_ptr;
         parent_pair[1] = outer_pair.second_len;
         child_pair[0] = (uint32_t)(uintptr_t)pair.second_ptr;
         child_pair[1] = pair.second_len;
-        magic = (uint32_t)name_tag;
+        magic = (uint32_t)tlv.tag;
         type = (uint32_t)(payload_tag >> 32u);
         if (hash_fn((uint32_t)outer_name,
                     (int)magic,
@@ -1573,30 +1567,29 @@ int img4_validate_payload(uint32_t *manifest_desc, uint32_t *payload_desc,
         return 0;
 
     while (walk.ptr < walk.end) {
-        struct img4_blob_range item_range = walk;
         struct der_tlv64 item_tlv;
         struct img4_named_pair pair;
         struct der_tlv64 child_tlv;
-        uint64_t child_name = 0ull;
         uint32_t compare_desc[2];
 
         if (img4_range_next(&walk, &item_tlv) < 0)
             return 0;
-        if (img4_parse_named_pair64(item_range.ptr,
-                                    (uint32_t)(item_tlv.next - item_range.ptr),
-                                    0ull, &child_name, &pair, &child_tlv) < 0) {
+        if (img4_parse_named_pair64(item_tlv.value,
+                                    item_tlv.len,
+                                    item_tlv.tag,
+                                    NULL, &pair, &child_tlv) < 0) {
             return 0;
         }
         if (!img4_check_magic_tag((int64_t)child_tlv.tag))
             return 0;
-        if (((uint64_t)child_name & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
+        if ((item_tlv.tag & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
             return 0;
         compare_desc[0] = (uint32_t)(uintptr_t)pair.second_ptr;
         compare_desc[1] = pair.second_len;
         if (!hdcp_crypto_validate_loop(flags,
                                        depth,
-                                       (int)(uint32_t)child_name,
-                                       (int)(uint32_t)(child_name >> 32u),
+                                       (int)(uint32_t)item_tlv.tag,
+                                       0,
                                        (int64_t)child_tlv.tag,
                                        (int *)compare_desc, payload_desc)) {
             return 0;
@@ -1831,24 +1824,23 @@ bool hdcp_crypto_validate_loop(int cert_ptr, int cert_len, int depth,
         return false;
 
     while (walk.ptr < walk.end) {
-        struct img4_blob_range item_range = walk;
         struct der_tlv64 item_tlv;
         struct img4_named_pair pair;
         struct der_tlv64 payload_tlv;
-        uint64_t child_name = 0ull;
 
         if (img4_range_next(&walk, &item_tlv) < 0)
             return false;
-        if (img4_parse_named_pair64(item_range.ptr,
-                                    (uint32_t)(item_tlv.next - item_range.ptr),
-                                    0ull, &child_name, &pair, &payload_tlv) < 0) {
+        if (img4_parse_named_pair64(item_tlv.value,
+                                    item_tlv.len,
+                                    item_tlv.tag,
+                                    NULL, &pair, &payload_tlv) < 0) {
             return false;
         }
         if (!img4_check_magic_tag((int64_t)payload_tlv.tag))
             return false;
-        if (((uint64_t)child_name >> 32u) != 0xE0000000u)
+        if ((item_tlv.tag & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
             return false;
-        if ((uint32_t)child_name != (uint32_t)depth)
+        if ((uint32_t)item_tlv.tag != (uint32_t)depth)
             continue;
         found = true;
         if (sentinel) {
@@ -1897,7 +1889,7 @@ int crypto_init_and_parse_im4m(int fw_base, int a2, int a3, int a4)
 {
     uint32_t saved_task = REG_TCB_CURRENT_TASK;
     uint32_t cert_desc[6];
-    uint32_t anchor_pair[2];
+    uint32_t anchor_block[3] = {0u, 268752u, 398u};
 
     (void)fw_base;
     (void)a2;
@@ -1909,16 +1901,10 @@ int crypto_init_and_parse_im4m(int fw_base, int a2, int a3, int a4)
     fast_memcpy(cert_desc, (const uint32_t *)FLASH_IM4M_CERT_ADDR,
                 FLASH_IM4M_CERT_SIZE, a4);
 
-    anchor_pair[0] = 268752u;
-    anchor_pair[1] = 398u;
-
     img4_parse_im4m_im4c(FLASH_BASE_ADDR, FLASH_IMAGE_SIZE,
                          &p1, &p2, &p3, &p4, &p5, &p6,
                          &p7, &p8, &p9, &p10,
-                         (int)cert_desc, (int)anchor_pair);
-
-    if (REG_TCB_CURRENT_TASK != saved_task)
-        system_halt_clear_flag();
+                         (int)cert_desc, (int)&anchor_block[1]);
 
     return (int)saved_task;
 }
