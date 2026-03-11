@@ -714,10 +714,8 @@ static int img4_parse_named_pair64(uint8_t *ptr, uint32_t len,
     if (actual_name)
         *actual_name = name_tag;
 
-    if (der_parse_tlv64(&cursor, outer.next, &child) < 0)
-        return -1;
-    out->first_ptr = child.value;
-    out->first_len = child.len;
+    out->first_ptr = name_tlv.value;
+    out->first_len = name_tlv.len;
 
     if (der_parse_tlv64(&cursor, outer.next, &child) < 0)
         return -1;
@@ -745,8 +743,6 @@ static int img4_parse_pubkey_blob_range(uint8_t *ptr, uint8_t *end,
     if (ptr == NULL || end == NULL || out == NULL)
         return -1;
     if (der_parse_expected64(&cursor, end, 0x2000000000000011ull, &outer) < 0)
-        return -1;
-    if (cursor != end)
         return -1;
     if (img4_range_from_tlv(&outer, &set_range) < 0)
         return -1;
@@ -1000,7 +996,7 @@ static int img4_parse_cert_chain_core(uint32_t ptr, uint32_t len,
     uint32_t expected_magic_u32;
 
     if (ptr == 0u || len == 0u || expected_magic == NULL)
-        return -1;
+        return 6;
     expected_magic_u32 = ((uint32_t)expected_magic[0] << 24u) |
                          ((uint32_t)expected_magic[1] << 16u) |
                          ((uint32_t)expected_magic[2] << 8u) |
@@ -1009,17 +1005,17 @@ static int img4_parse_cert_chain_core(uint32_t ptr, uint32_t len,
     if (der_parse_expected64(&p, end, 0x2000000000000010ull, &outer) < 0)
         return -1;
     if (p != end)
-        return -1;
+        return 7;
 
     cursor = outer.value;
     if (der_parse_ia5_magic(&cursor, outer.next, &version) < 0)
         return -1;
     if (version != expected_magic_u32)
-        return -1;
+        return 16;
     if (der_parse_expected64(&cursor, outer.next, 2ull, &version_tlv) < 0)
         return -1;
     if (version_tlv.len != 1u || version_tlv.value[0] != 0u)
-        return -1;
+        return 15;
     if (body_ptr)
         *body_ptr = (uint32_t)(uintptr_t)cursor;
     if (body_len)
@@ -1037,7 +1033,7 @@ static int img4_parse_cert_chain_core(uint32_t ptr, uint32_t len,
         return -1;
     }
     if (actual_tag != expected_tag || wrapper_app_tlv.tag != expected_tag)
-        return -1;
+        return 2;
     if (der_parse_expected64(&cursor, outer.next, 4ull, &sig) < 0)
         return -1;
     if (cert_ptr != NULL) {
@@ -1055,7 +1051,7 @@ static int img4_parse_cert_chain_core(uint32_t ptr, uint32_t len,
         }
     }
     if (cursor != outer.next)
-        return -1;
+        return 7;
 
     cursor = wrapper_app_tlv.value;
     item_start = cursor;
@@ -1064,7 +1060,7 @@ static int img4_parse_cert_chain_core(uint32_t ptr, uint32_t len,
         return -1;
     }
     if (cursor != wrapper_app_tlv.next)
-        return -1;
+        return 7;
     if (img4_parse_named_pair64(item_start,
                                 (uint32_t)(named_body_tlv.next - item_start),
                                 expected_tag, NULL, &body_pair,
@@ -1072,7 +1068,7 @@ static int img4_parse_cert_chain_core(uint32_t ptr, uint32_t len,
         return -1;
     }
     if (body_set_tlv.tag != 0x2000000000000011ull)
-        return -1;
+        return 2;
     if (block_range) {
         block_range->ptr = body_set_tlv.value;
         block_range->end = body_set_tlv.next;
@@ -1190,7 +1186,7 @@ int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
     (void)unused;
 
     if (hash_ptr == 0 || data_ptr == 0 || data_len <= 0)
-        return -1;
+        return 6;
     alt_tag = raw_desc[5];
     manifest_cb = (int (*)(uint32_t, int, uint32_t, uint32_t, uint32_t *, uint32_t *, int))(uintptr_t)raw_desc[2];
     alt_cb = (int (*)(uint32_t, int, uint32_t, uint32_t, uint32_t *, uint32_t *, int))(uintptr_t)raw_desc[3];
@@ -1205,13 +1201,13 @@ int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
         return -1;
     }
     if (cursor != outer_tlv.next)
-        return -1;
+        return 2;
 
     cursor = outer_tlv.value;
     if (der_parse_expected64(&cursor, outer_tlv.next, expected_outer, &app_tlv) < 0)
         return -1;
     if (cursor != outer_tlv.next)
-        return -1;
+        return 2;
 
     cursor = app_tlv.value;
     if (der_parse_expected64(&cursor, app_tlv.next, 0x2000000000000010ull,
@@ -1219,19 +1215,19 @@ int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
         return -1;
     }
     if (cursor != app_tlv.next)
-        return -1;
+        return 2;
 
     cursor = inner_tlv.value;
     if (der_parse_expected64(&cursor, inner_tlv.next, 22ull, &name_tlv) < 0)
         return -1;
     if (name_tlv.len != 4u || memcmp_custom(name_tlv.value, expected_name, 4u) != 0)
-        return -1;
+        return 2;
     if (der_parse_expected64(&cursor, inner_tlv.next, 0x2000000000000011ull,
                              &list_tlv) < 0) {
         return -1;
     }
     if (cursor != inner_tlv.next)
-        return -1;
+        return 2;
     if (img4_range_from_tlv(&list_tlv, &list_range) < 0)
         return -1;
 
@@ -1254,41 +1250,45 @@ int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
             return -1;
         }
         if (item_payload.tag != 0x2000000000000011ull)
-            return -1;
+            return 2;
         item_magic = (uint32_t)item_name;
         list_desc[0] = (uint32_t)(uintptr_t)list_tlv.value;
         list_desc[1] = list_tlv.len;
         if (item_magic == IMG4_TAG_MANP) {
             if (seen_manb != 0u)
-                return -1;
+                return 2;
             seen_manb = 1u;
             if (manifest_cb == NULL)
-                return -1;
-            if (crypto_verify_payload_hash(list_desc, -(int)IMG4_TAG_MANP,
-                                            (int64_t)item_tlv.tag,
-                                            manifest_cb, unused) < 0) {
-                return -1;
+                return 6;
+            {
+                int rc = crypto_verify_payload_hash(list_desc, -(int)IMG4_TAG_MANP,
+                                                    (int64_t)item_tlv.tag,
+                                                    manifest_cb, unused);
+                if (rc != 0)
+                    return rc;
             }
         } else if (item_magic == alt_tag) {
             if (seen_alt != 0u)
-                return -1;
+                return 2;
             seen_alt = 1u;
             if (alt_cb == NULL)
-                return -1;
-            if (crypto_verify_payload_hash(list_desc,
-                                            (int)alt_tag,
-                                            (int64_t)item_tlv.tag,
-                                            alt_cb,
-                                            unused) < 0) {
-                return -1;
+                return 6;
+            {
+                int rc = crypto_verify_payload_hash(list_desc,
+                                                    (int)alt_tag,
+                                                    (int64_t)item_tlv.tag,
+                                                    alt_cb,
+                                                    unused);
+                if (rc != 0)
+                    return rc;
             }
         } else {
-            return -1;
+            return 2;
         }
     }
 
     if (list_range.ptr != list_range.end)
-        return -1;
+        return 2;
     return 0;
 }
 
@@ -1314,12 +1314,12 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
     if (hash_fn == NULL)
         return 6;
     if (manifest == NULL)
-        return -1;
+        return 6;
 
     walk.ptr = (uint8_t *)(uintptr_t)manifest[0];
     walk.end = walk.ptr + manifest[1];
     if (walk.ptr == NULL || walk.end == NULL || walk.ptr > walk.end)
-        return -1;
+        return 2;
 
     if (img4_parse_named_pair64(walk.ptr, (uint32_t)(walk.end - walk.ptr),
                                 expected_outer, &outer_name, &outer_pair,
@@ -1327,7 +1327,7 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
         return -1;
     }
     if (outer_set_tlv.tag != 0x2000000000000011ull)
-        return -1;
+        return 2;
     if (img4_range_from_tlv(&outer_set_tlv, &walk) < 0)
         return -1;
 
@@ -1354,9 +1354,9 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
         }
         payload_tag = payload_tlv.tag;
         if (!img4_check_magic_tag((int64_t)payload_tag))
-            return -1;
+            return 2;
         if ((tlv.tag & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
-            return -1;
+            return 2;
 
         expected_name_len = 0u;
         if ((tlv.tag & 0xFFFFFFFF00000000ull) == 0xE000000000000000ull) {
@@ -1368,14 +1368,14 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
             expected_name[expected_name_len++] = (uint8_t)raw_name;
         }
         if (pair.first_ptr == NULL || pair.first_len == 0u || pair.first_len > sizeof(expected_name))
-            return -1;
+            return 2;
         if (pair.first_len != expected_name_len ||
             memcmp_custom(pair.first_ptr, expected_name, expected_name_len) != 0) {
-            return -1;
+            return 2;
         }
         payload_name = img4_tag64_name_from_bytes(pair.first_ptr, pair.first_len);
         if (payload_name == 0ull)
-            return -1;
+            return 2;
 
         parent_pair[0] = (uint32_t)(uintptr_t)outer_pair.second_ptr;
         parent_pair[1] = outer_pair.second_len;
@@ -1383,13 +1383,15 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
         child_pair[1] = pair.second_len;
         magic = (uint32_t)tlv.tag;
         type = (uint32_t)(payload_tag >> 32u);
-        if (hash_fn((uint32_t)outer_name,
-                    (int)magic,
-                    (uint32_t)payload_tag,
-                    type,
-                    parent_pair,
-                    child_pair, flags) < 0) {
-            return -1;
+        {
+            int rc = hash_fn((uint32_t)outer_name,
+                             (int)magic,
+                             (uint32_t)payload_tag,
+                             type,
+                             parent_pair,
+                             child_pair, flags);
+            if (rc != 0)
+                return rc;
         }
     }
 
@@ -1419,15 +1421,15 @@ int crypto_parse_cert_chain(uint32_t ptr, uint32_t len,
         return -1;
     crypto_memcpy(magic_bytes, (const void *)(uintptr_t)expected_magic_ptr, 4u);
 
-    if (img4_parse_cert_chain_core(ptr, len,
+    int rc = img4_parse_cert_chain_core(ptr, len,
                                    &local_body_ptr, &local_body_len,
                                    &local_sig_ptr, &local_sig_len,
                                    &local_cert_ptr, &local_cert_len,
                                    &block_range,
                                    magic_bytes,
-                                   expected_name) < 0) {
-        return -1;
-    }
+                                   expected_name);
+    if (rc != 0)
+        return rc;
 
     if (body_ptr)
         *body_ptr = local_body_ptr;
@@ -1590,7 +1592,7 @@ int img4_validate_payload(uint32_t *manifest_desc, uint32_t *payload_desc,
         if (!hdcp_crypto_validate_loop(flags,
                                        depth,
                                        (int)(uint32_t)item_tlv.tag,
-                                       0,
+                                       (int)(uint32_t)(item_tlv.tag >> 32u),
                                        (int64_t)child_tlv.tag,
                                        (int *)compare_desc, payload_desc)) {
             return 0;
@@ -1624,7 +1626,11 @@ int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
                            int cert_ptr,  int tag_ptr)
 {
     const struct img4_parser_descriptor *desc;
+    const uint32_t *raw_desc = NULL;
     int raw_desc_ptr = 0;
+    struct der_tlv64 top_tlv;
+    uint8_t *top_cursor;
+    uint32_t trimmed_size;
     struct img4_blob_range cert_block;
     struct img4_blob_range manifest_block;
     struct img4_blob_range pubkey_blob;
@@ -1658,6 +1664,7 @@ int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
         const uint32_t *anchor_pair = (const uint32_t *)((uintptr_t)tag_ptr + 4u);
 
         raw_desc_ptr = cert_ptr;
+        raw_desc = (const uint32_t *)(uintptr_t)raw_desc_ptr;
         desc = img4_get_descriptor(cert_ptr, IMG4_TAG_OBJP,
                                    anchor_pair[0], anchor_pair[1]);
     } else {
@@ -1667,19 +1674,26 @@ int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
     if (desc == NULL || desc->trust_anchor_ptr == 0u || desc->trust_anchor_len == 0u)
         return -1;
 
-    if (crypto_parse_cert_chain(addr, size,
+    top_cursor = (uint8_t *)(uintptr_t)addr;
+    if (der_parse_tlv64(&top_cursor, top_cursor + size, &top_tlv) < 0)
+        return 7;
+    trimmed_size = (uint32_t)(top_tlv.next - (uint8_t *)(uintptr_t)addr);
+    if (trimmed_size > size)
+        return 7;
+
+    if (crypto_parse_cert_chain(addr, trimmed_size,
                                 &manifest_body_ptr, &manifest_body_len,
                                 &manifest_sig_ptr, &manifest_sig_len,
                                 &im4c_ptr, &im4c_len,
                                 (int)(uintptr_t)im4m_magic, 4u,
                                 manifest_pair, IMG4_TAG_MANB) < 0) {
-        return -1;
+        return 8;
     }
     if (manifest_body_len == 0u || manifest_body_len > size ||
         manifest_sig_len == 0u || manifest_sig_len > size ||
         im4c_len == 0u || im4c_len > size ||
-        manifest_body_len + manifest_sig_len + im4c_len > size) {
-        return -1;
+        manifest_body_len + manifest_sig_len + im4c_len > trimmed_size) {
+        return 7;
     }
     manifest_block.ptr = (uint8_t *)(uintptr_t)manifest_pair[0];
     manifest_block.end = manifest_block.ptr + manifest_pair[1];
@@ -1690,12 +1704,12 @@ int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
                                 NULL, NULL,
                                 (int)(uintptr_t)im4c_magic, 4u,
                                 cert_pair, IMG4_TAG_CRTP) < 0) {
-        return -1;
+        return 9;
     }
     if (cert_body_len == 0u || cert_body_len > size ||
         cert_sig_len == 0u || cert_sig_len > size ||
         cert_body_len + cert_sig_len > im4c_len) {
-        return -1;
+        return 7;
     }
     cert_block.ptr = (uint8_t *)(uintptr_t)cert_pair[0];
     cert_block.end = cert_block.ptr + cert_pair[1];
@@ -1703,25 +1717,39 @@ int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
     if (crypto_parse_pubkey_struct((int)(uintptr_t)cert_block.ptr,
                                    (int)(cert_block.end - cert_block.ptr),
                                    &pubkey_blob_ptr, &pubkey_blob_len) != 0) {
-        return -1;
+        return 11;
     }
-    if (crypto_parse_pubkey_struct((int)desc->trust_anchor_ptr,
-                                   (int)desc->trust_anchor_len,
-                                   &trust_blob_ptr, &trust_blob_len) != 0) {
-        return -1;
+    if (raw_desc != NULL && raw_desc[1] != 0u) {
+        int (*init_cb)(uint32_t) = (int (*)(uint32_t))(uintptr_t)raw_desc[1];
+        int (*verify_cb)(int, int, uint32_t, uint32_t) =
+            (int (*)(int, int, uint32_t, uint32_t))(uintptr_t)raw_desc[1];
+        int hook_rc;
+
+        hook_rc = init_cb(desc->trust_anchor_ptr);
+        if (hook_rc != 0)
+            return hook_rc;
+        hook_rc = verify_cb((int)pubkey_blob_ptr, (int)pubkey_blob_len,
+                            manifest_sig_ptr, manifest_sig_len);
+        if (hook_rc != 0)
+            return 10;
+    } else {
+        if (crypto_parse_pubkey_struct((int)desc->trust_anchor_ptr,
+                                       (int)desc->trust_anchor_len,
+                                       &trust_blob_ptr, &trust_blob_len) != 0) {
+            return -1;
+        }
+        if (trust_blob_ptr == 0u || trust_blob_len == 0u)
+            return -1;
     }
     pubkey_blob.ptr = (uint8_t *)(uintptr_t)pubkey_blob_ptr;
     pubkey_blob.end = pubkey_blob.ptr + pubkey_blob_len;
-
-    if (trust_blob_ptr == 0u || trust_blob_len == 0u)
-        return -1;
     if (REG_BOOT_FLAGS == 1u &&
         img4_parse_manifest_tags(raw_desc_ptr, &cert_block, &manifest_block) != 0) {
         return -1;
     }
     if (crypto_validate_block(raw_desc_ptr, (int)manifest_body_ptr, 0,
                               (int)manifest_body_len, IMG4_TAG_MANB) < 0) {
-        return -1;
+        return 14;
     }
 
     if (p1) *p1 = manifest_body_ptr;
