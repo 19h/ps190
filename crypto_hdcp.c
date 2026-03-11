@@ -659,18 +659,19 @@ static int crypto_verify_payload_hash_cb(uint32_t manifest, int offset,
                                          uint32_t *value_start,
                                          uint32_t *value_end, int flags)
 {
+    uint64_t second_tag = ((uint64_t)type << 32u) | magic;
+
     (void)manifest;
     (void)offset;
     (void)flags;
 
     if (value_start == NULL || value_end == NULL)
         return -1;
-    if ((uint8_t *)value_start >= (uint8_t *)value_end)
+    if (value_start[0] == 0u || value_end[0] == 0u)
         return -1;
-    if (magic == 0u)
+    if (value_start[1] == 0u || value_end[1] == 0u)
         return -1;
-    if (img4_check_magic_tag((int64_t)type) ||
-        img4_check_magic_tag((int64_t)img4_make_app_tag64_u32(type))) {
+    if (img4_check_magic_tag((int64_t)second_tag)) {
         return 0;
     }
     return -1;
@@ -1098,9 +1099,9 @@ static const struct img4_parser_descriptor *img4_get_descriptor(int ptr,
         raw = (const uint32_t *)(uintptr_t)ptr;
         fallback.alt_payload_tag = raw[5];
         fallback.manifest_cb = (int (*)(uint32_t, int, uint32_t, uint32_t,
-                                        uint32_t *, uint32_t *, int))(uintptr_t)raw[1];
+                                        uint32_t *, uint32_t *, int))(uintptr_t)raw[2];
         fallback.alt_cb = (int (*)(uint32_t, int, uint32_t, uint32_t,
-                                   uint32_t *, uint32_t *, int))(uintptr_t)raw[2];
+                                   uint32_t *, uint32_t *, int))(uintptr_t)raw[3];
         fallback.trust_anchor_ptr = fallback_anchor_ptr;
         fallback.trust_anchor_len = fallback_anchor_len;
         return &fallback;
@@ -1189,7 +1190,7 @@ int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
 
     if (hash_ptr == 0 || data_ptr == 0 || data_len <= 0)
         return -1;
-    desc = img4_get_descriptor(hash_ptr, flags, 0u, 0u);
+    desc = img4_get_descriptor(hash_ptr, IMG4_TAG_OBJP, 0u, 0u);
     if (desc == NULL)
         return -1;
     expected_name[0] = (uint8_t)(flags >> 24u);
@@ -1253,13 +1254,13 @@ int crypto_validate_block(int hash_ptr, int data_ptr, int unused, int data_len,
         if (item_payload.tag != 0x2000000000000011ull)
             return -1;
         item_magic = (uint32_t)item_name;
-        if (item_magic == IMG4_TAG_MANB) {
+        if (item_magic == IMG4_TAG_MANP) {
             if (seen_manb != 0u)
                 return -1;
             seen_manb = 1u;
             if (desc->manifest_cb == NULL)
                 return -1;
-            if (crypto_verify_payload_hash((uint32_t *)hash_ptr, -(int)IMG4_TAG_MANB,
+            if (crypto_verify_payload_hash((uint32_t *)hash_ptr, -(int)IMG4_TAG_MANP,
                                             ((int64_t)(uint32_t)(uintptr_t)item_range.ptr << 32u) |
                                             (uint32_t)(uintptr_t)item_tlv.next,
                                             desc->manifest_cb, unused) < 0) {
@@ -1336,6 +1337,8 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
         struct der_tlv64 payload_tlv;
         uint64_t name_tag = 0ull;
         uint64_t payload_name = 0ull;
+        uint32_t parent_pair[2];
+        uint32_t child_pair[2];
         uint8_t expected_name[8];
         uint32_t expected_name_len;
         uint32_t magic;
@@ -1377,13 +1380,18 @@ int crypto_verify_payload_hash(uint32_t *manifest, int offset, int64_t range,
         if (payload_name != name_tag)
             return -1;
 
+        parent_pair[0] = (uint32_t)(uintptr_t)outer_pair.second_ptr;
+        parent_pair[1] = outer_pair.second_len;
+        child_pair[0] = (uint32_t)(uintptr_t)pair.second_ptr;
+        child_pair[1] = pair.second_len;
         magic = (uint32_t)name_tag;
-        type = (uint32_t)payload_tag;
-        if (hash_fn((uint32_t)(uintptr_t)manifest,
-                    offset != 0 ? offset : (int)magic,
-                    magic, type,
-                    (uint32_t *)payload_tlv.value,
-                    (uint32_t *)payload_tlv.next, flags) < 0) {
+        type = (uint32_t)(payload_tag >> 32u);
+        if (hash_fn((uint32_t)outer_name,
+                    (int)magic,
+                    (uint32_t)payload_tag,
+                    type,
+                    parent_pair,
+                    child_pair, flags) < 0) {
             return -1;
         }
     }
@@ -1622,6 +1630,7 @@ int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
                            int cert_ptr,  int tag_ptr)
 {
     const struct img4_parser_descriptor *desc;
+    int raw_desc_ptr = 0;
     struct img4_blob_range cert_block;
     struct img4_blob_range manifest_block;
     struct img4_blob_range pubkey_blob;
@@ -1654,6 +1663,7 @@ int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
     if (tag_ptr != 0) {
         const uint32_t *anchor_pair = (const uint32_t *)(uintptr_t)tag_ptr;
 
+        raw_desc_ptr = cert_ptr;
         desc = img4_get_descriptor(cert_ptr, IMG4_TAG_OBJP,
                                    anchor_pair[0], anchor_pair[1]);
     } else {
@@ -1712,10 +1722,10 @@ int img4_parse_im4m_im4c(uint32_t addr, uint32_t size,
     if (trust_blob_ptr == 0u || trust_blob_len == 0u)
         return -1;
     if (REG_BOOT_FLAGS == 1u &&
-        img4_parse_manifest_tags((int)(uintptr_t)desc, &cert_block, &manifest_block) != 0) {
+        img4_parse_manifest_tags(raw_desc_ptr, &cert_block, &manifest_block) != 0) {
         return -1;
     }
-    if (crypto_validate_block((int)(uintptr_t)desc, (int)manifest_body_ptr, 0,
+    if (crypto_validate_block(raw_desc_ptr, (int)manifest_body_ptr, 0,
                               (int)manifest_body_len, IMG4_TAG_MANB) < 0) {
         return -1;
     }
@@ -1796,14 +1806,16 @@ bool hdcp_crypto_validate_loop(int cert_ptr, int cert_len, int depth,
                             | (uint32_t)cert_ptr;
     uint64_t outer_name = 0ull;
     bool sentinel = ((uint64_t)root_key == 0xA000000000000001ull);
-    bool has_root = ((uint64_t)root_key != 0ull) && !sentinel;
+    bool has_root = ((uint64_t)root_key != 0ull) &&
+                    ((uint64_t)root_key != 0xA000000000000000ull) &&
+                    !sentinel;
     bool found = false;
 
     (void)max_depth;
 
     if (desc == NULL)
         return sentinel;
-    if (desc[0] == 0u || desc[1] == 0u)
+    if (desc[1] == 0u)
         return sentinel;
     if (has_root) {
         crypto_validation_stub();
