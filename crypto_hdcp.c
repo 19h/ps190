@@ -60,6 +60,7 @@
 #define IM4M_MAGIC          0x494D344Du  /* "IM4M" */
 #define IM4C_MAGIC          0x494D3443u  /* "IM4C" */
 #define IMG4_TAG_MANB       0x4D414E42u  /* "MANB" */
+#define IMG4_TAG_MANP       0x4D414E50u  /* "MANP" */
 #define IMG4_TAG_OBJP       0x4F424A50u  /* "OBJP" */
 #define IMG4_TAG_PUBK       0x5055424Bu  /* "PUBK" */
 #define IMG4_TAG_CRTP       0x43525450u  /* "CRTP" */
@@ -737,6 +738,7 @@ static int img4_parse_pubkey_blob_range(uint8_t *ptr, uint8_t *end,
     struct der_tlv64 crtp_tlv;
     struct der_tlv64 pubk_tlv;
     struct der_tlv64 blob_tlv;
+    uint8_t *blob_cursor;
     uint8_t *cursor = ptr;
 
     if (ptr == NULL || end == NULL || out == NULL)
@@ -752,19 +754,14 @@ static int img4_parse_pubkey_blob_range(uint8_t *ptr, uint8_t *end,
         crtp_tlv.tag != img4_make_app_tag64_u32(IMG4_TAG_CRTP)) {
         return -1;
     }
-    if (img4_range_from_tlv(&crtp_tlv, &set_range) < 0)
-        return -1;
     if (img4_range_next(&set_range, &pubk_tlv) < 0 ||
         pubk_tlv.tag != img4_make_app_tag64_u32(IMG4_TAG_PUBK)) {
         return -1;
     }
     if (set_range.ptr != set_range.end)
         return -1;
-    if (img4_range_from_tlv(&pubk_tlv, &set_range) < 0)
-        return -1;
-    if (img4_range_next(&set_range, &blob_tlv) < 0)
-        return -1;
-    if (set_range.ptr != set_range.end)
+    blob_cursor = pubk_tlv.value;
+    if (der_parse_tlv64(&blob_cursor, pubk_tlv.next, &blob_tlv) < 0)
         return -1;
 
     if (blob_tlv.tag != 4ull)
@@ -1044,7 +1041,7 @@ static int img4_parse_cert_chain_core(uint32_t ptr, uint32_t len,
         return -1;
     if (der_parse_expected64(&cursor, outer.next, 4ull, &sig) < 0)
         return -1;
-    if (cert_ptr != NULL || cert_len != NULL) {
+    if (cert_ptr != NULL) {
         uint8_t *cert_start = cursor;
 
         if (cursor < outer.next) {
@@ -1054,11 +1051,8 @@ static int img4_parse_cert_chain_core(uint32_t ptr, uint32_t len,
                 *cert_ptr = (uint32_t)(uintptr_t)cert_start;
             if (cert_len)
                 *cert_len = (uint32_t)(cert.next - cert_start);
-        } else {
-            if (cert_ptr)
-                *cert_ptr = 0u;
-            if (cert_len)
-                *cert_len = 0u;
+        } else if (cert_len) {
+            *cert_len = 0u;
         }
     }
     if (cursor != outer.next)
@@ -1102,15 +1096,11 @@ static const struct img4_parser_descriptor *img4_get_descriptor(int ptr,
 
     if (ptr != 0) {
         raw = (const uint32_t *)(uintptr_t)ptr;
-        fallback.alt_payload_tag = raw[5] != 0u ? raw[5] : fallback_alt_tag;
-        fallback.manifest_cb = raw[1] != 0u
-                             ? (int (*)(uint32_t, int, uint32_t, uint32_t,
-                                        uint32_t *, uint32_t *, int))(uintptr_t)raw[1]
-                             : crypto_verify_payload_hash_cb;
-        fallback.alt_cb = raw[2] != 0u
-                        ? (int (*)(uint32_t, int, uint32_t, uint32_t,
-                                   uint32_t *, uint32_t *, int))(uintptr_t)raw[2]
-                        : fallback.manifest_cb;
+        fallback.alt_payload_tag = raw[5];
+        fallback.manifest_cb = (int (*)(uint32_t, int, uint32_t, uint32_t,
+                                        uint32_t *, uint32_t *, int))(uintptr_t)raw[1];
+        fallback.alt_cb = (int (*)(uint32_t, int, uint32_t, uint32_t,
+                                   uint32_t *, uint32_t *, int))(uintptr_t)raw[2];
         fallback.trust_anchor_ptr = fallback_anchor_ptr;
         fallback.trust_anchor_len = fallback_anchor_len;
         return &fallback;
@@ -1475,13 +1465,13 @@ int img4_parse_manifest_tags(int desc_ptr,
     struct img4_blob_range left;
     struct img4_blob_range right;
     struct der_tlv64 tlv;
-    uint32_t left_manb[2] = {0u, 0u};
+    uint32_t left_manp[2] = {0u, 0u};
     uint32_t left_alt[2] = {0u, 0u};
-    uint32_t right_manb[2] = {0u, 0u};
+    uint32_t right_manp[2] = {0u, 0u};
     uint32_t right_alt[2] = {0u, 0u};
-    bool have_left_manb = false;
+    bool have_left_manp = false;
     bool have_left_alt = false;
-    bool have_right_manb = false;
+    bool have_right_manp = false;
     bool have_right_alt = false;
 
     if (left_range == NULL || right_range == NULL)
@@ -1496,12 +1486,12 @@ int img4_parse_manifest_tags(int desc_ptr,
     while (left.ptr < left.end) {
         if (img4_range_next(&left, &tlv) < 0)
             return 2;
-        if ((uint32_t)tlv.tag == IMG4_TAG_MANB) {
-            if (have_left_manb)
+        if ((uint32_t)tlv.tag == IMG4_TAG_MANP) {
+            if (have_left_manp)
                 return 2;
-            have_left_manb = true;
-            left_manb[0] = (uint32_t)(uintptr_t)tlv.value;
-            left_manb[1] = tlv.len;
+            have_left_manp = true;
+            left_manp[0] = (uint32_t)(uintptr_t)tlv.value;
+            left_manp[1] = tlv.len;
         } else if ((uint32_t)tlv.tag == IMG4_TAG_OBJP) {
             if (have_left_alt)
                 return 2;
@@ -1516,12 +1506,12 @@ int img4_parse_manifest_tags(int desc_ptr,
     while (right.ptr < right.end) {
         if (img4_range_next(&right, &tlv) < 0)
             return 2;
-        if ((uint32_t)tlv.tag == IMG4_TAG_MANB) {
-            if (have_right_manb)
+        if ((uint32_t)tlv.tag == IMG4_TAG_MANP) {
+            if (have_right_manp)
                 return 2;
-            have_right_manb = true;
-            right_manb[0] = (uint32_t)(uintptr_t)tlv.value;
-            right_manb[1] = tlv.len;
+            have_right_manp = true;
+            right_manp[0] = (uint32_t)(uintptr_t)tlv.value;
+            right_manp[1] = tlv.len;
         } else if ((uint32_t)tlv.tag == desc->alt_payload_tag) {
             if (have_right_alt)
                 return 2;
@@ -1533,9 +1523,9 @@ int img4_parse_manifest_tags(int desc_ptr,
         }
     }
 
-    if (have_left_manb && !img4_validate_payload(left_manb, right_manb,
-                                                 (int64_t)IMG4_TAG_MANB,
-                                                 IMG4_TAG_MANB, 0)) {
+    if (have_left_manp && !img4_validate_payload(left_manp, right_manp,
+                                                 (int64_t)IMG4_TAG_MANP,
+                                                 IMG4_TAG_MANP, 0)) {
         return 12;
     }
     if (have_left_alt && !img4_validate_payload(left_alt, right_alt,
@@ -1593,8 +1583,8 @@ int img4_validate_payload(uint32_t *manifest_desc, uint32_t *payload_desc,
             return 0;
         if (((uint64_t)child_name & 0xFFFFFFFF00000000ull) != 0xE000000000000000ull)
             return 0;
-        compare_desc[0] = (uint32_t)(uintptr_t)outer_pair.second_ptr;
-        compare_desc[1] = outer_pair.second_len;
+        compare_desc[0] = (uint32_t)(uintptr_t)pair.second_ptr;
+        compare_desc[1] = pair.second_len;
         if (!hdcp_crypto_validate_loop(flags,
                                        depth,
                                        (int)(uint32_t)child_name,
@@ -1815,8 +1805,6 @@ bool hdcp_crypto_validate_loop(int cert_ptr, int cert_len, int depth,
         return sentinel;
     if (desc[0] == 0u || desc[1] == 0u)
         return sentinel;
-    if (!img4_check_magic_tag(root_key))
-        return false;
     if (has_root) {
         crypto_validation_stub();
     }
@@ -1859,9 +1847,9 @@ bool hdcp_crypto_validate_loop(int cert_ptr, int cert_len, int depth,
 
             if (cmp == NULL || cmp[0] == 0u)
                 return false;
-            if (outer_pair.second_ptr == NULL || outer_pair.second_len != cmp[1])
+            if (pair.second_ptr == NULL || pair.second_len != cmp[1])
                 return false;
-            if (memcmp_custom(outer_pair.second_ptr,
+            if (memcmp_custom(pair.second_ptr,
                               (const uint8_t *)(uintptr_t)cmp[0], cmp[1]) != 0)
                 return false;
         }
